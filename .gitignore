@@ -1,0 +1,23 @@
+# 缓存与临时文件
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+node_modules/
+*.log
+*.tmp
+._*
+
+# 运行时残留
+*.zstd
+_clone_*.jsonl
+_tmp*
+/tmp/
+
+# 敏感凭据（如未来有）
+*.token
+credentials*
+.env
+
+# 隐私：对话原文不公开
+60-工具与备份/知识库/对话原文/

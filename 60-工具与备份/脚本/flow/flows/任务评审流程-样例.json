@@ -1,0 +1,74 @@
+{
+  "id": "task-review-demo",
+  "name": "任务评审流程（自定义样例）",
+  "description": "董事长说的例子：1 ChatGPT分析 → 5-6-7 并行处理 → 9 汇总输出。5和6并行，都完成后7才做。",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "ChatGPT 分析",
+      "executor": "chatgpt",
+      "action": "analyze",
+      "note": "深度分析材料本体",
+      "requires_network": true
+    },
+    {
+      "id": "5",
+      "name": "千问写文档",
+      "executor": "qwen",
+      "action": "write_doc",
+      "note": "中文文档撰写",
+      "requires_network": false
+    },
+    {
+      "id": "6",
+      "name": "DeepSeek 技术审查",
+      "executor": "deepseek",
+      "action": "review",
+      "note": "技术方案审查",
+      "requires_network": false
+    },
+    {
+      "id": "7",
+      "name": "千问润色",
+      "executor": "qwen",
+      "action": "polish",
+      "note": "整合 5 和 6 的产出后润色",
+      "requires_network": false
+    },
+    {
+      "id": "9",
+      "name": "DSH 汇总输出",
+      "executor": "dsh",
+      "action": "summarize",
+      "note": "按任务分析输出方式汇总",
+      "requires_network": false
+    }
+  ],
+  "edges": [
+    {
+      "from": "1",
+      "to": "5"
+    },
+    {
+      "from": "1",
+      "to": "6"
+    },
+    {
+      "from": "5",
+      "to": "7"
+    },
+    {
+      "from": "6",
+      "to": "7"
+    },
+    {
+      "from": "7",
+      "to": "9"
+    }
+  ],
+  "state": {
+    "completed": [
+      "1"
+    ]
+  }
+}

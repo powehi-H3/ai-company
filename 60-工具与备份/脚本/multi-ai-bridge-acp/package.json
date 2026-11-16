@@ -1,0 +1,14 @@
+{
+  "name": "multi-ai-bridge-acp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "App↔ACP 桥接：把封闭手机 App（ChatGPT/千问/DeepSeek）包装成标准 ACP agent",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "1.4.0"
+  }
+}

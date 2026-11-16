@@ -1,0 +1,118 @@
+{
+  "id": "standard-project",
+  "name": "标准项目流程（9步）",
+  "description": "从 08-项目启动与交付标准流程.md 迁移而来：立项→填材料→定人员→组装→转发→同步→汇总→交付→归档",
+  "nodes": [
+    {
+      "id": "1",
+      "name": "立项（单一入口）",
+      "executor": "dsh",
+      "action": "new_project",
+      "note": "new-project.sh 一键建全",
+      "requires_network": false
+    },
+    {
+      "id": "2",
+      "name": "填材料本体",
+      "executor": "yg",
+      "action": "fill_material",
+      "note": "原始资料全文，不许只给摘要",
+      "requires_network": false
+    },
+    {
+      "id": "3",
+      "name": "定人员分配",
+      "executor": "dsh",
+      "action": "assign_people",
+      "note": "查能力清单，读不到的跳过",
+      "requires_network": false
+    },
+    {
+      "id": "4",
+      "name": "组装任务包",
+      "executor": "dsh",
+      "action": "assemble_pack",
+      "note": "过可交付闸门，材料本体必须在",
+      "requires_network": false
+    },
+    {
+      "id": "5",
+      "name": "秘书转发",
+      "executor": "yg",
+      "action": "forward",
+      "note": "DSH 发不了消息，必须秘书转发",
+      "requires_network": false
+    },
+    {
+      "id": "6",
+      "name": "同步回收",
+      "executor": "dsh",
+      "action": "sync",
+      "note": "汇总前先跑同步，记读取时间+条数",
+      "requires_network": false
+    },
+    {
+      "id": "7",
+      "name": "汇总验收",
+      "executor": "dsh",
+      "action": "summarize_review",
+      "note": "标原话/判断/待确认，执行与验收分离",
+      "requires_network": false
+    },
+    {
+      "id": "8",
+      "name": "交付+一次性更新",
+      "executor": "dsh",
+      "action": "deliver",
+      "note": "落手机目录，一次性同步所有文档",
+      "requires_network": false
+    },
+    {
+      "id": "9",
+      "name": "结项归档",
+      "executor": "dsh",
+      "action": "archive",
+      "note": "archive-project.sh，一个项目一个ZIP",
+      "requires_network": false
+    }
+  ],
+  "edges": [
+    {
+      "from": "1",
+      "to": "2"
+    },
+    {
+      "from": "2",
+      "to": "3"
+    },
+    {
+      "from": "3",
+      "to": "4"
+    },
+    {
+      "from": "4",
+      "to": "5"
+    },
+    {
+      "from": "5",
+      "to": "6"
+    },
+    {
+      "from": "6",
+      "to": "7"
+    },
+    {
+      "from": "7",
+      "to": "8"
+    },
+    {
+      "from": "8",
+      "to": "9"
+    }
+  ],
+  "state": {
+    "completed": [
+      "1"
+    ]
+  }
+}
