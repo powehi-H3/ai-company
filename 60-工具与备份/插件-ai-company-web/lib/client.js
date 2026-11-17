@@ -43,11 +43,11 @@ window.__ModuleLoader__.load({
       },
       kpiNum: { fontSize: 24, fontWeight: 700, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' },
       kpiLabel: { fontSize: 11, opacity: 0.55, marginTop: 2 },
-      // 分区栏：一行放 5 个，短标签
-      seg: { display: 'flex', gap: 4, marginBottom: 12 },
+      // 分区栏：可换行，适配 7 个标签的窄屏
+      seg: { display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 12 },
       segItem: (on) => ({
-        flex: 1, textAlign: 'center', padding: '7px 2px',
-        fontSize: 12.5, borderRadius: 8, cursor: 'pointer', userSelect: 'none',
+        flex: '1 1 auto', minWidth: 48, textAlign: 'center', padding: '7px 3px',
+        fontSize: 11.5, borderRadius: 8, cursor: 'pointer', userSelect: 'none',
         background: on ? '#4B67B4' : 'rgba(255,255,255,0.05)',
         color: on ? '#fff' : 'inherit',
         border: '1px solid ' + (on ? 'transparent' : 'rgba(255,255,255,0.07)'),
@@ -179,6 +179,101 @@ window.__ModuleLoader__.load({
       )
     }
 
+    // ══════ 上帝视角 · 空间俯瞰 + 叠层 + 穿透 ══════
+    const SPACE_ICON = { company: '🏢', dept: '🏛', project: '📁', task: '📌', knowledge: '📚', temp: '🗂' }
+    function GodView({ data }) {
+      const ov = data.overview
+      const layers = ov?.layers || []
+      const spaces = ov?.spaces || []
+      const [active, setActive] = useState('project')
+      const [query, setQuery] = useState('')
+      const [peek, setPeek] = useState(null)   // 穿透预览 { label, text }
+
+      if (!ov) return h('div', { style: S.card }, h('div', { style: S.empty }, '空间引擎未就绪，点刷新重试'))
+
+      const cur = layers.find(l => l.id === active) || layers[0]
+      let nodes = spaces.filter(n => n.spaces && n.spaces.includes(active))
+      if (query.trim()) {
+        const q = query.trim().toLowerCase()
+        nodes = nodes.filter(n => String(n.label || '').toLowerCase().includes(q) || String(n.id || '').toLowerCase().includes(q))
+      }
+      // 节点 → 可穿透的源路径（从关系图节点 ref 反推）
+      const peekNode = async (n) => {
+        if (!n.ref) { setPeek({ label: n.label, text: '（该节点无穿透引用：' + n.id + '）' }); return }
+        let rel = n.ref
+        if (rel.startsWith('对话原文/')) rel = '60-工具与备份/知识库/' + rel
+        else if (!rel.includes('AI公司/')) rel = '20-项目区/进行中/AI公司软件化重构/' + rel
+        const full = '/storage/emulated/0/AI专用文件夹/AI公司/' + rel
+        try {
+          const r = await api('/file', { path: full })
+          setPeek({ label: n.label, text: r.ok ? r.text.slice(0, 4000) : ('（读取失败：' + (r.reason || '') + '，路径 ' + rel + '）') })
+        } catch (e) { setPeek({ label: n.label, text: '（穿透失败：' + e.message + '）' }) }
+      }
+
+      return h('div', null,
+        // ① 俯瞰总览
+        h('div', { style: S.card },
+          h('div', { style: S.cardHead },
+            h('span', { style: S.cardTitle }, '🛰 上帝视角'),
+            h('span', { style: S.sub }, `${ov.stats.total} 实体 · ${ov.stats.layers} 空间`),
+          ),
+          // 叠层统计条
+          h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 } },
+            ...layers.map(l => h('div', {
+              key: l.id,
+              onClick: () => { setActive(l.id); setPeek(null) },
+              style: {
+                padding: '5px 9px', borderRadius: 8, cursor: 'pointer', fontSize: 11,
+                background: active === l.id ? '#4B67B4' : 'rgba(255,255,255,0.05)',
+                color: active === l.id ? '#fff' : 'inherit',
+                border: '1px solid ' + (active === l.id ? 'transparent' : 'rgba(255,255,255,0.08)'),
+                opacity: l.count ? 1 : 0.4,
+              },
+            }, `${SPACE_ICON[l.id] || '·'} ${l.zh} ${l.count}`)),
+          ),
+          h('div', { style: { fontSize: 11, opacity: 0.5 } },
+            '点空间切换俯瞰层 · 点节点穿透到原文 · 同名实体已跨空间联邦合并'),
+        ),
+        // ② 当前层节点（可搜、可穿透）
+        h('div', { style: S.card },
+          h('div', { style: S.cardHead },
+            h('span', { style: S.cardTitle }, `${SPACE_ICON[active] || '·'} ${cur?.zh || active} · ${nodes.length}`),
+            h('span', { style: S.sub }, cur?.view || ''),
+          ),
+          h('input', {
+            value: query, placeholder: '搜节点…',
+            onChange: (e) => setQuery(e.target.value),
+            style: { width: '100%', padding: '7px 9px', borderRadius: 7, fontSize: 12,
+                     background: 'rgba(255,255,255,0.05)', color: 'inherit', border: '1px solid rgba(255,255,255,0.1)', marginBottom: 8 },
+          }),
+          h('div', { style: { maxHeight: 320, overflow: 'auto' } },
+            ...nodes.slice(0, 80).map((n, i) => h('div', {
+              key: i,
+              onClick: () => peekNode(n),
+              style: { ...S.row, cursor: 'pointer', ...(i === Math.min(79, nodes.length - 1) ? { borderBottom: 'none' } : {}) },
+            },
+              h('span', { style: S.badgeSm(n.weight > 1 ? 'good' : 'info') }, n.type),
+              h('div', { style: S.rowMain },
+                h('div', { style: S.rowTitle }, n.label || n.id),
+                n.spaces?.length > 1 ? h('div', { style: S.rowSub }, `跨 ${n.spaces.length} 空间：${n.spaces.join('·')}`) : null,
+              ),
+              n.ref ? h('span', { style: { fontSize: 10, opacity: 0.4 } }, '穿透 ›') : null,
+            )),
+            nodes.length === 0 ? h('div', { style: S.empty }, '该层暂无节点') : null,
+            nodes.length > 80 ? h('div', { style: S.empty }, `仅显示前 80 / ${nodes.length}`) : null,
+          ),
+        ),
+        // ③ 穿透预览
+        peek ? h('div', { style: S.card },
+          h('div', { style: S.cardHead },
+            h('span', { style: S.cardTitle }, '🔍 ' + peek.label),
+            h('span', { style: { ...S.sub, cursor: 'pointer' }, onClick: () => setPeek(null) }, '关闭'),
+          ),
+          h('div', { style: S.pre }, peek.text || '（空）'),
+        ) : null,
+      )
+    }
+
     // 2 列网格卡片（工位/项目用），点击展开详情
     function Tile({ name, sub, badge, badgeTone, bar, next, details, defaultOpen, issues }) {
       const [open, setOpen] = useState(!!defaultOpen)
@@ -288,7 +383,7 @@ window.__ModuleLoader__.load({
         )
       }
 
-      const TABS = ['总览', '项目', '文档', '团队', '制度', '公司']
+      const TABS = ['总览', '项目', '文档', '团队', '制度', '公司', '上帝视角']
       const d = data
       const pct = d.autoTotal ? Math.round(d.autoPassed / d.autoTotal * 100) : 0
       const bad = d.seats.filter(s => s.dot === 'bad')
@@ -694,6 +789,11 @@ window.__ModuleLoader__.load({
             )
           }),
         )
+      }
+
+      // ══════ 上帝视角（空间俯瞰 + 叠层 + 穿透）══════
+      else if (tab === 6) {
+        body = h(GodView, { data: d })
       }
 
       // 渲染兜底：出错时显示原因，不显示空白

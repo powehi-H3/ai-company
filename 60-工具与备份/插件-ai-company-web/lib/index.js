@@ -4,6 +4,7 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
+import { SPACES, buildOverview, routeSpace, issueConsent, checkConsent } from './spaces.js'
 
 const CANDIDATES = [
   '/storage/emulated/0/AI专用文件夹/AI公司',
@@ -370,9 +371,26 @@ async function collect() {
   if (fs.existsSync(chg)) chgOk = Date.now() - (await fsp.stat(chg)).mtimeMs < 86400000
   ruleStatus(8, chgOk, chgOk ? 'CHANGELOG 24h 内有更新' : 'CHANGELOG 超过 24h 未更新')
 
+  // ④空间引擎：读关系图节点 → 构建多维俯瞰
+  let graphNodes = []
+  const gnodePath = path.join(root, '20-项目区/进行中/AI公司软件化重构/关系图-节点.jsonl')
+  if (fs.existsSync(gnodePath)) {
+    for (const line of (await readText(gnodePath)).split('\n')) {
+      if (!line.trim()) continue
+      try {
+        const n = JSON.parse(line)
+        graphNodes.push({ id: n.id, label: n.label, type: n.type, ref: n.ref })
+      } catch {}
+    }
+  }
+  const overview = buildOverview({
+    projects: { doing, done }, seats, docs, ruleTotal: RULES.length, graphNodes,
+  })
+
   const autoRules = RULES.filter((r) => r.auto)
   return {
     ok: true, root, rooms, seats,
+    graphNodes, overview,
     projects: { doing, done, held: [] },
     cabinets, checks, docs, companyIssues,
     ruleTotal: RULES.length,
@@ -416,6 +434,30 @@ export function apply(ctx) {
       return { ok: true, path: p, text }
     },
     '/list': async (q) => ({ ok: true, files: await listFiles(q?.dir ?? '') }),
+    // ④空间引擎：空间路由 + 俯瞰（干涉前只读，不需授权）
+    '/spaces': async (q) => {
+      const root = companyRoot()
+      if (!root) return { ok: false, reason: '找不到公司目录' }
+      try {
+        const s = q?.space ? routeSpace(q.space, root) : null
+        const d = await collectCached(q?.force === '1')
+        return { ok: true, space: s ? { id: s.id, zh: s.zh, icon: s.icon, abs: s.abs } : null,
+                 spaces: SPACES.map(x => ({ id: x.id, zh: x.zh, icon: x.icon, view: x.view })),
+                 overview: d.overview }
+      } catch (e) { return { ok: false, code: e.code, reason: String(e.message || e) } }
+    },
+    // ④授权闸门：干预类操作（迁移/写）需显式授权，一次性 token
+    '/consent': async (q) => {
+      if (q?.issue) {
+        const token = issueConsent(q.action || 'write', { target: q.target || '' })
+        return { ok: true, token, hint: '30秒内有效，单次消费' }
+      }
+      if (q?.token && q?.action) {
+        const r = checkConsent(q.token, q.action, { target: q.target || '' })
+        return { ok: r.ok, ...r }
+      }
+      return { ok: false, reason: '需 issue=1 或 token+action' }
+    },
     '/timeline': async (q) => {
       const root = companyRoot()
       const base = `${root}/20-项目区/进行中/AI公司软件化重构`
