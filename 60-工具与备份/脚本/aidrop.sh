@@ -198,10 +198,10 @@ fi
 # ── 8. 输入文字 ──
 log "输入文字（${#TEXT} 字）"
 # 重要限制（实测 2026-11-16）：
-#   Android 的 `input text` **不支持中文**，会直接抛异常：
-#   "Exception occurred while executing 'text'"
-#   剪贴板注入（service call clipboard / am broadcast）在这台机器上也失败。
+#   `input text` 只对 ASCII 可靠，中文会抛
+#   "Exception occurred while executing 'text'"；剪贴板注入在这台机器上也失败。
 #   所以：中文目前做不到，只能用英文/数字/符号。
+#   （中文投递改走 send_v2.py 的 UI dump + 定点点击方案，那里已实现。）
 if echo "$TEXT" | LC_ALL=C grep -qE '[^ -~]'; then
   echo "错误：检测到非 ASCII 字符（中文等）。" >&2
   echo "  Android 的 input text 不支持中文，实测会崩溃。" >&2

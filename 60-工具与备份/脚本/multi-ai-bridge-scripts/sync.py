@@ -3,14 +3,31 @@
 """AI 对话同步器 —— 读所有 App 数据库，导出为 Markdown 知识库"""
 import sys, os, json, sqlite3, shutil, tempfile, subprocess, datetime, hashlib
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(BASE, "adapters"))
-sys.path.insert(0, os.path.join(BASE, "scripts"))
+# 路径自解析（清债 2026-11-17：不再依赖工作区旧地址）
+HERE = os.path.dirname(os.path.abspath(__file__))                       # .../脚本/multi-ai-bridge-scripts
+SCRIPTS = os.path.dirname(HERE)                                         # .../脚本
+COMPANY = os.path.abspath(os.path.join(HERE, "..", "..", ".."))         # .../AI公司
+ADAPTERS = os.path.join(SCRIPTS, "multi-ai-bridge-adapters")             # 实际适配器目录名
+sys.path.insert(0, ADAPTERS)
+sys.path.insert(0, HERE)                                                 # sanitize.py 与本文件同目录
 
 from sanitize import sanitize, report as san_report
 
-ROOTC = "/root/日常任务区/v9-review/rootc.py"
-MEMORY = "/root/日常任务区/ai-memory"
+# rootc.py 候选解析：优先公司内副本，兼容旧工作区地址
+def _resolve_rootc():
+    for p in (
+        os.path.join(SCRIPTS, "rootc.py"),
+        os.path.expanduser("~/tools/rootc.py"),
+        "/root/tools/rootc.py",
+        "/root/日常任务区/v9-review/rootc.py",  # 旧地址，最后兜底
+    ):
+        if os.path.exists(p):
+            return p
+    return os.path.join(SCRIPTS, "rootc.py")
+
+ROOTC = _resolve_rootc()
+# 导出落点：公司知识库下（不覆盖既有 对话原文/）
+MEMORY = os.path.join(COMPANY, "60-工具与备份", "知识库")
 
 def root_cmd(cmd, timeout=130):
     env = dict(os.environ, ROOTC_TIMEOUT=str(timeout))
