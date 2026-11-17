@@ -110,3 +110,76 @@ export function buildOverview(data) {
   }))
   return { spaces: federated, layers, stats: { total: federated.length, layers: layers.length } }
 }
+
+// ══════ ⑤ 真实干预引擎（借鉴 agentguard 风险分级+审计）══════
+
+// 动作风险分级（来自第2搜：Permission Firewall 的 read_file vs delete_database）
+export const ACTIONS = {
+  setStatus: { risk: 'low',    zh: '改状态', desc: '把问题条目从待处理改为处理中/已完成' },
+  // 以下留接口不开放（高风险，授权闸门先于 I/O）
+  moveFile:  { risk: 'high',   zh: '移动文件', desc: '跨空间迁移（暂不开放）' },
+  deleteItem:{ risk: 'critical',zh: '删除条目', desc: '删除问题条目（暂不开放）' },
+}
+export function riskOf(action) {
+  const a = ACTIONS[action]
+  if (!a) return { risk: 'unknown', allowed: false }
+  return { ...a, allowed: a.risk === 'low' }  // 当前只开放低风险
+}
+
+// 生成审计记录（append-only，host 负责落盘）
+// 借鉴 Permission Firewall 的 ALLOWED/BLOCKED/PENDING_APPROVAL + UTC 时间戳
+export function auditRecord(action, payload, outcome, detail = '') {
+  return {
+    at: new Date().toISOString(),   // UTC 时间戳
+    action,
+    target: payload?.target || '',
+    risk: riskOf(action).risk,
+    outcome,                        // PENDING_APPROVAL | ALLOWED | BLOCKED
+    detail,
+  }
+}
+
+// 预览：把"改状态"这个动作渲染成人类可读的两段式说明（dry-run）
+export function previewAction(action, payload) {
+  if (action === 'setStatus') {
+    return {
+      action, risk: 'low',
+      title: `将「${payload.title || payload.id || '?'}」的状态改为 ${payload.toStatus}`,
+      lines: [
+        `文件：${payload.file || '(未提供)'}`,
+        `编号：${payload.id || '?'}`,
+        `当前 → 目标：${payload.fromStatus || '待处理'} → ${payload.toStatus}`,
+      ],
+      reversible: true,
+    }
+  }
+  return { action, risk: riskOf(action).risk, title: '不支持的动作', lines: [], reversible: false }
+}
+
+// 纯函数：在一段问题池 md 文本里，把指定编号条目的状态区块移动（待处理↔处理中↔已完成）
+// 返回新文本；不改原文本。host 拿到新文本后原子写回。
+export function applyStatusChange(text, id, toStatus) {
+  const SECTIONS = {
+    '待处理': ['## 待处理', '## 一、待处理'],
+    '处理中': ['## 处理中', '## 二、处理中'],
+    '已完成': ['## 已完成', '## 三、已完成', '## 三、已完成（留痕，不删除）'],
+  }
+  const lines = text.split('\n')
+  const findSection = (name) => {
+    const heads = SECTIONS[name] || []
+    return lines.findIndex(l => heads.some(h => l.trim().startsWith(h)))
+  }
+  // 找到 id 所在行
+  const idx = lines.findIndex(l => l.includes(`[${id}]`))
+  if (idx < 0) return { ok: false, reason: '找不到编号 ' + id }
+  const line = lines[idx]
+  const rest = line.replace(/^\s*-\s*/, '')
+  // 移除该行，插入到目标 section 标题之后
+  lines.splice(idx, 1)
+  const toIdx0 = findSection(toStatus)
+  if (toIdx0 < 0) return { ok: false, reason: '找不到目标区块 ' + toStatus }
+  // 插入后重新算（splice 前面删了一行可能影响索引，重新找）
+  const toIdx = lines.findIndex(l => (SECTIONS[toStatus] || []).some(h => l.trim().startsWith(h)))
+  lines.splice(toIdx + 1, 0, '- ' + rest)
+  return { ok: true, text: lines.join('\n'), movedLine: line.trim() }
+}

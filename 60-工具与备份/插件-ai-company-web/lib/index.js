@@ -4,7 +4,8 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
-import { SPACES, buildOverview, routeSpace, issueConsent, checkConsent } from './spaces.js'
+import { SPACES, buildOverview, routeSpace, issueConsent, checkConsent,
+         riskOf, auditRecord, previewAction, applyStatusChange } from './spaces.js'
 
 const CANDIDATES = [
   '/storage/emulated/0/AI专用文件夹/AI公司',
@@ -33,13 +34,16 @@ async function readText(p, max = 200000) {
 
 // 解析问题需求池 md：抓 `- [编号] 标题 —— 说明（来源）`
 // 返回 { type, id, title, detail, section } 数组
-function parseIssues(text) {
+function parseIssues(text, file) {
   const out = []
   if (!text) return out
   let section = ''
   for (const line of text.split('\n')) {
     const sh = line.match(/^##\s+(.+)$/)
-    if (sh) { section = sh[1].replace(/[（(].*$/, '').trim(); continue }
+    if (sh) {
+      section = sh[1].replace(/^[一二三四五六七八九十]+、/, '').replace(/[（(].*$/, '').trim()
+      continue
+    }
     const m = line.match(/^-\s*\[([^\]]+)\]\s*(.+)$/)
     if (!m) continue
     const id = m[1].trim()
@@ -51,7 +55,7 @@ function parseIssues(text) {
     if (/REQ|P-REQ|建议/.test(id)) type = 'suggest'
     else if (/BUG|P-BUG|问题/.test(id)) type = 'bug'
     else if (/OPT|P-OPT|优化/.test(id)) type = 'opt'
-    out.push({ id, type, title, detail, section })
+    out.push({ id, type, title, detail, section, file: file || '' })
   }
   return out
 }
@@ -241,7 +245,8 @@ async function collect() {
       // 项目自己的问题需求池（跟项目走）
       let issues = []
       if (mdFiles.includes('00-问题需求池.md')) {
-        issues = parseIssues(await readText(path.join(pd, '00-问题需求池.md')))
+        issues = parseIssues(await readText(path.join(pd, '00-问题需求池.md')),
+                             path.relative(root, path.join(pd, '00-问题需求池.md')))
       }
 
       out.push({
@@ -355,7 +360,7 @@ async function collect() {
   if (fs.existsSync(ciDir)) {
     for (const f of ['01-建议.md', '02-问题.md', '03-优化.md']) {
       const p = path.join(ciDir, f)
-      if (fs.existsSync(p)) companyIssues.push(...parseIssues(await readText(p)))
+      if (fs.existsSync(p)) companyIssues.push(...parseIssues(await readText(p), path.relative(root, p)))
     }
   }
 
@@ -458,6 +463,88 @@ export function apply(ctx) {
       }
       return { ok: false, reason: '需 issue=1 或 token+action' }
     },
+
+    // ⑤真实干预：preview（预览/申请授权）→ apply（校验+原子写+审计）
+    '/intervene': async (q) => {
+      const root = companyRoot()
+      if (!root) return { ok: false, reason: '找不到公司目录' }
+      const action = q?.action || 'setStatus'
+      const risk = riskOf(action)
+      if (!risk.allowed) {
+        return { ok: false, code: 'ORCH_E_RISK_BLOCKED', reason: `动作 ${action} 风险=${risk.risk}，当前不开放` }
+      }
+
+      // 审计日志路径（append-only）
+      const auditPath = path.join(root, '20-项目区/进行中/AI公司软件化重构/06-功能测试区/干预审计日志.jsonl')
+      const writeAudit = async (rec) => {
+        try {
+          await fsp.appendFile(auditPath, JSON.stringify(rec) + '\n', 'utf8')
+        } catch (e) { /* 审计失败不影响主流程，但会在返回里标注 */ return String(e.message || e) }
+        return null
+      }
+
+      // 目标文件白名单：只接受公司内、问题池 md，防路径穿越
+      const resolvePoolFile = (rel) => {
+        if (!rel || !rel.endsWith('.md')) return null
+        if (rel.includes('..') || path.isAbsolute(rel)) return null
+        const okNames = ['00-问题需求池.md', '01-建议.md', '02-问题.md', '03-优化.md']
+        if (!okNames.some(n => rel.endsWith(n))) return null
+        const abs = path.join(root, rel)
+        return abs.startsWith(root) && fs.existsSync(abs) ? abs : null
+      }
+
+      if (q?.mode === 'preview') {
+        // 两段式第一段：读文件、生成人类可读预览、签发票据（绑定完整 payload）
+        if (!q.id || !q.toStatus) return { ok: false, reason: 'preview 需要 id 与 toStatus（票据绑定完整参数）' }
+        const abs = resolvePoolFile(q.file)
+        if (!abs) return { ok: false, reason: '目标文件不在白名单或不存在' }
+        const text = await readText(abs)
+        const payload = { id: q.id, file: q.file, toStatus: q.toStatus, title: q.title || q.id }
+        const preview = previewAction(action, payload)
+        const token = issueConsent(action, payload)
+        const auditErr = await writeAudit(auditRecord(action, payload, 'PENDING_APPROVAL', q.id || ''))
+        return { ok: true, preview, token, expiresInSec: 60, auditErr }
+      }
+
+      if (q?.mode === 'apply') {
+        // 两段式第二段：校验票据（单次消费）→ 改内容 → 原子写 → 审计
+        const payload = { id: q.id, file: q.file, toStatus: q.toStatus, title: q.title || q.id }
+        const gate = checkConsent(q.token, action, payload)
+        if (!gate.ok) {
+          await writeAudit(auditRecord(action, payload, 'BLOCKED', gate.reason))
+          return { ok: false, code: gate.code, reason: gate.reason }
+        }
+        const abs = resolvePoolFile(q.file)
+        if (!abs) {
+          await writeAudit(auditRecord(action, payload, 'BLOCKED', '目标文件不在白名单'))
+          return { ok: false, reason: '目标文件不在白名单或不存在' }
+        }
+        const text = await readText(abs)
+        const r = applyStatusChange(text, q.id, q.toStatus)
+        if (!r.ok) {
+          await writeAudit(auditRecord(action, payload, 'BLOCKED', r.reason))
+          return { ok: false, reason: r.reason }
+        }
+        // 原子写：tmp + rename
+        const tmp = abs + '.tmp'
+        await fsp.writeFile(tmp, r.text, 'utf8')
+        await fsp.rename(tmp, abs)
+        const auditErr = await writeAudit(auditRecord(action, payload, 'ALLOWED', r.movedLine))
+        return { ok: true, movedLine: r.movedLine, file: q.file, auditErr, hint: '状态已更新，可点刷新查看' }
+      }
+
+      return { ok: false, reason: '需 mode=preview 或 mode=apply' }
+    },
+
+    // 读干预审计日志（上帝视角可查看）
+    '/audit': async () => {
+      const root = companyRoot()
+      const p = path.join(root, '20-项目区/进行中/AI公司软件化重构/06-功能测试区/干预审计日志.jsonl')
+      if (!fs.existsSync(p)) return { ok: true, records: [] }
+      const lines = (await readText(p)).split('\n').filter(Boolean)
+      return { ok: true, records: lines.slice(-50).map(l => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean) }
+    },
+
     '/timeline': async (q) => {
       const root = companyRoot()
       const base = `${root}/20-项目区/进行中/AI公司软件化重构`

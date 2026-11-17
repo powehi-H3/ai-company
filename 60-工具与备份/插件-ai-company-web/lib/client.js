@@ -154,15 +154,49 @@ window.__ModuleLoader__.load({
 
     // 建议/BUG/优化 条目列表：点标题展开具体内容（按草图：名字 → 展开 → 具体内容）
     const ISSUE_LABEL = { suggest: '建议', bug: 'BUG', opt: '优化', other: '项' }
-    function IssueList({ issues, limit }) {
+    function IssueList({ issues, limit, onChanged }) {
       if (!issues || !issues.length) return h('div', { style: S.empty }, '暂无')
       const list = limit ? issues.slice(0, limit) : issues
       return h('div', {},
-        ...list.map((it, i) => h(IssueItem, { key: i, it })),
+        ...list.map((it, i) => h(IssueItem, { key: i, it, onChanged })),
       )
     }
-    function IssueItem({ it }) {
+    function IssueItem({ it, onChanged }) {
       const [open, setOpen] = useState(false)
+      const [gate, setGate] = useState(null)   // { token, preview } 待确认
+      const [busy, setBusy] = useState(false)
+      const [msg, setMsg] = useState('')
+
+      // 第一段：预览 + 申请授权票据
+      const askPreview = async (toStatus) => {
+        if (!it.file) { setMsg('该条目缺少来源文件，无法干预'); return }
+        setBusy(true); setMsg('')
+        try {
+          const r = await api('/intervene', {
+            action: 'setStatus', mode: 'preview',
+            file: it.file, id: it.id, toStatus, title: it.title,
+          })
+          if (r.ok) setGate({ token: r.token, preview: r.preview, toStatus })
+          else setMsg('预览失败：' + (r.reason || ''))
+        } catch (e) { setMsg('预览出错：' + e.message) }
+        setBusy(false)
+      }
+
+      // 第二段：确认执行（单次消费票据）
+      const doApply = async () => {
+        if (!gate) return
+        setBusy(true); setMsg('')
+        try {
+          const r = await api('/intervene', {
+            action: 'setStatus', mode: 'apply', token: gate.token,
+            file: it.file, id: it.id, toStatus: gate.toStatus, title: it.title,
+          })
+          if (r.ok) { setMsg('✅ 已改为「' + gate.toStatus + '」'); setGate(null); onChanged && onChanged() }
+          else setMsg('执行被拒：' + (r.reason || r.code || ''))
+        } catch (e) { setMsg('执行出错：' + e.message) }
+        setBusy(false)
+      }
+
       return h('div', { style: { borderBottom: '1px solid rgba(255,255,255,0.05)' } },
         h('div', {
           onClick: () => setOpen(!open),
@@ -175,7 +209,43 @@ window.__ModuleLoader__.load({
         ),
         open ? h('div', {
           style: { fontSize: 10.5, lineHeight: 1.5, opacity: 0.75, padding: '2px 8px 8px 24px', color: 'inherit' },
-        }, it.detail || '（无详细说明）', it.section ? h('div', { style: { opacity: 0.5, marginTop: 3 } }, `状态：${it.section}`) : null) : null,
+        },
+          h('div', {}, it.detail || '（无详细说明）'),
+          h('div', { style: { opacity: 0.5, marginTop: 3 } }, `状态：${it.section || '—'}${it.file ? ' · ' + it.file.split('/').pop() : ''}`),
+
+          // ⑤ 干预：两段式（预览 → 确认执行）
+          !gate ? h('div', { style: { display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' } },
+            it.section !== '处理中' ? h('button', {
+              disabled: busy, onClick: () => askPreview('处理中'),
+              style: { ...S.btn, padding: '4px 9px', fontSize: 10.5, opacity: busy ? 0.5 : 1 },
+            }, '→ 处理中') : null,
+            it.section !== '已完成' ? h('button', {
+              disabled: busy, onClick: () => askPreview('已完成'),
+              style: { ...S.btn, padding: '4px 9px', fontSize: 10.5, opacity: busy ? 0.5 : 1 },
+            }, '→ 已完成') : null,
+            it.section !== '待处理' ? h('button', {
+              disabled: busy, onClick: () => askPreview('待处理'),
+              style: { ...S.btn, padding: '4px 9px', fontSize: 10.5, opacity: busy ? 0.5 : 1 },
+            }, '↩ 待处理') : null,
+          ) : h('div', {
+            style: { marginTop: 8, padding: 8, borderRadius: 7, background: 'rgba(210,153,34,0.10)', border: '1px solid rgba(210,153,34,0.30)' },
+          },
+            h('div', { style: { fontSize: 11, marginBottom: 6 } }, '⚠ ' + (gate.preview?.title || '确认执行？')),
+            ...(gate.preview?.lines || []).map((l, i) => h('div', { key: i, style: { fontSize: 10, opacity: 0.6 } }, l)),
+            h('div', { style: { display: 'flex', gap: 6, marginTop: 8 } },
+              h('button', {
+                disabled: busy, onClick: doApply,
+                style: { ...S.btn, padding: '4px 10px', fontSize: 10.5, background: 'rgba(63,185,80,0.18)', borderColor: 'rgba(63,185,80,0.4)' },
+              }, busy ? '执行中…' : '确认执行'),
+              h('button', {
+                disabled: busy, onClick: () => { setGate(null); setMsg('已取消') },
+                style: { ...S.btn, padding: '4px 10px', fontSize: 10.5 },
+              }, '取消'),
+            ),
+            h('div', { style: { fontSize: 9.5, opacity: 0.45, marginTop: 5 } }, '票据 60 秒有效，单次消费'),
+          ),
+          msg ? h('div', { style: { marginTop: 6, fontSize: 10.5, color: msg.startsWith('✅') ? '#3fb950' : '#f85149' } }, msg) : null,
+        ) : null,
       )
     }
 
@@ -275,7 +345,7 @@ window.__ModuleLoader__.load({
     }
 
     // 2 列网格卡片（工位/项目用），点击展开详情
-    function Tile({ name, sub, badge, badgeTone, bar, next, details, defaultOpen, issues }) {
+    function Tile({ name, sub, badge, badgeTone, bar, next, details, defaultOpen, issues, onChanged }) {
       const [open, setOpen] = useState(!!defaultOpen)
       return h('div', { style: S.tile },
         h('div', { style: S.tileHead, onClick: () => setOpen(!open) },
@@ -294,7 +364,7 @@ window.__ModuleLoader__.load({
           // 需求/BUG/优化 放最前，跟公司 tab 同样的展示
           issues && issues.length ? h('div', { style: { marginBottom: 10 } },
             h('div', { style: { ...S.cardTitle, fontSize: 12, marginBottom: 2 } }, `需求 / BUG / 优化 · ${issues.length} 条`),
-            h(IssueList, { issues }),
+            h(IssueList, { issues, onChanged }),
           ) : null,
           details && details.map((d, i) => h(KV, { key: i, k: d[0], v: d[1] })),
         ) : null,
@@ -554,6 +624,7 @@ window.__ModuleLoader__.load({
                 next: p.nextStep ? `→ ${p.nextStep}` : null,
                 details,
                 issues: p.issues,
+                onChanged: () => load(true),
                 defaultOpen: (!p.hasZip && p.st !== 'done') || (p.issues && p.issues.length > 0 && p.name.includes('软件化')),
               })
             })
@@ -785,7 +856,7 @@ window.__ModuleLoader__.load({
                 h('span', { style: S.cardTitle }, `${meta.icon} ${meta.zh}`),
                 h('span', { style: S.sub }, `${pending(t)} 待处理 / ${list.length}`),
               ),
-              h(IssueList, { issues: list }),
+              h(IssueList, { issues: list, onChanged: () => load(true) }),
             )
           }),
         )
