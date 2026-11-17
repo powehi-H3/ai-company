@@ -121,7 +121,8 @@ function collectLogEdges(projects) {
         // 会话号截 8 位作短 id：约 2.8e9 组合，本项目 <100 会话无碰撞；
         // 若会话量上万需改用完整 sid（与 collectCorpusEdges 保持一致）
         const cid = `chat:${sid.slice(0, 8)}`
-        nodes.push({ id: cid, type: 'chat', label: ev.title || ('会话' + sid.slice(0, 8)), ref: ev.ref })
+        nodes.push({ id: cid, type: 'chat', label: ev.title || ('会话' + sid.slice(0, 8)),
+                     ref: ev.ref, archived: true })  // 已进入事件日志（正式口径）
         edges.push({ id: stableId(cid, 'in_project', `proj:${proj.name}`),
                      from: cid, rel: '属于项目', to: `proj:${proj.name}`,
                      evidence: `事件日志/${proj.name}` })
@@ -158,6 +159,8 @@ function collectCorpusEdges() {
       if (!f.endsWith('.md')) continue
       const sid = f.replace(/\.md$/, '').split('__').pop().slice(0, 8)
       const cid = `chat:${sid}`
+      // 语料库里有、但没进事件日志的会话（未归档），建节点时标 archived:false。
+      // buildGraph 的 addNode 会保留先写入的 archived:true，故这里只补边不覆盖节点属性。
       edges.push({ id: stableId(cid, 'by_ai', `ai:${ai}`),
                    from: cid, rel: '由AI产生', to: `ai:${ai}`,
                    evidence: `对话原文/${aiDir}/${f}` })
@@ -203,8 +206,11 @@ function answerWho(graph, aiName) {
                              .map(e => e.to.slice(5))
   const chats = graph.edges.filter(e => e.to === id && e.rel === '由AI产生')
                            .map(e => e.from.slice(5))
+  const archived = graph.nodes.filter(n => n.type === 'chat' && n.archived &&
+                                     chats.includes(n.id.slice(5)))
   return { ai, actualProjects: [...new Set(actual)], staffedProjects: [...new Set(staffed)],
-           chatCount: new Set(chats).size }
+           chatCount: new Set(chats).size,           // 语料库口径（含未归档）
+           archivedChats: archived.length }         // 事件日志口径（正式）
 }
 function answerProject(graph, projName) {
   const id = `proj:${projName}`
@@ -235,13 +241,17 @@ function writeView(graph) {
   }
   fs.writeFileSync(path.join(OUT_DIR, '关系图-视图.md'), lines.join('\n') + '\n')
 
+  const totalChats = graph.nodes.filter(n => n.type === 'chat').length
+  const archivedChats = graph.nodes.filter(n => n.type === 'chat' && n.archived).length
   const q = ['# 关系查询 · 10 秒接上', '',
     '> 断上下文、换 AI，从这里一秒看清「谁参与了什么」。', '',
+    `> **对话数口径**：事件日志已归档 ${archivedChats} 个（正式口径）；语料库合计 ${totalChats} 个（含未归档会话）。两者不同是因为部分会话尚未进入事件日志，不是数据错误。`, '',
     '## 问题一：某 AI 参与过哪些项目？', '']
   for (const ai of ['DSH', 'ChatGPT', '通义千问', '大肥鱼', '豆包', 'Grok', 'DSH分身', 'YG']) {
     const a = answerWho(graph, ai)
     const real = a.actualProjects.length ? a.actualProjects.join('、') : '（暂无对话证据）'
-    q.push(`- **${a.ai}**：实际参与 ${real}；关联对话 ${a.chatCount} 个；工位编制 ${a.staffedProjects.length} 项（模板，非证据）`)
+    const diff = a.chatCount !== a.archivedChats ? `（已归档${a.archivedChats}）` : ''
+    q.push(`- **${a.ai}**：实际参与 ${real}；语料库对话 ${a.chatCount}${diff}；工位编制 ${a.staffedProjects.length} 项（模板，非证据）`)
   }
   q.push('', '## 问题二：某项目有哪些 AI / 对话 / 产出？', '')
   for (const p of allProjects()) {
