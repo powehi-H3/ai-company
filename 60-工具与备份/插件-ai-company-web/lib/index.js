@@ -295,7 +295,22 @@ async function collect() {
     const base = path.join(root, er.dir)
     if (fs.existsSync(base)) await scanDocs(base, 0, er.project)
   }
-  await scanDocs(root, 0, '(根)')
+  // 根目录只扫直属文件：写一个不递归的版本，避免把 20-/40- 里的文件重复扫成"(根)"
+  for (const e of await ls(root)) {
+    if (!e.endsWith('.md') || e.startsWith('.')) continue
+    try {
+      const fp = path.join(root, e)
+      const st = await fsp.stat(fp)
+      if (!st.isFile()) continue
+      const raw = e.replace(/\.md$/, '')
+      const clean = raw.replace(/^\d+-/, '')
+      docs.push({
+        name: clean, file: e, raw,
+        kind: 'report', kindZh: '公司文档',
+        project: '公司级', bytes: st.size, path: fp, mtime: st.mtimeMs,
+      })
+    } catch {}
+  }
 
   const checks = []
   const ruleStatus = (n, ok, detail) => checks.push({ n, ok, detail })
