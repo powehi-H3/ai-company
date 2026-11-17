@@ -18,10 +18,10 @@
  * 产物（read side，可整体重建）：
  *   关系图-节点.jsonl / 关系图-边.jsonl / 关系图-视图.md / 关系查询-10秒接上.md
  *
- * 用法：
- *   node relation-engine.js --project AI公司软件化重构 [--dry-run] [--stats]
- *   node relation-engine.js --project AI公司软件化重构 --who 大肥鱼
- *   node relation-engine.js --project AI公司软件化重构 --project-query AI公司软件化重构
+ * 用法（全项目扫描，无需指定项目）：
+ *   node relation-engine.js [--dry-run] [--stats]
+ *   node relation-engine.js --who 大肥鱼
+ *   node relation-engine.js --project-query AI公司软件化重构
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -55,11 +55,9 @@ function exists(p) { try { fs.accessSync(p); return true } catch { return false 
 
 function args() {
   const a = process.argv.slice(2)
-  const o = { project: 'AI公司软件化重构', dryRun: false, stats: false,
-              who: null, projectQuery: null }
+  const o = { dryRun: false, stats: false, who: null, projectQuery: null }
   for (let i = 0; i < a.length; i++) {
-    if (a[i] === '--project') o.project = a[++i]
-    else if (a[i] === '--dry-run') o.dryRun = true
+    if (a[i] === '--dry-run') o.dryRun = true
     else if (a[i] === '--stats') o.stats = true
     else if (a[i] === '--who') o.who = a[++i]
     else if (a[i] === '--project-query') o.projectQuery = a[++i]
@@ -120,6 +118,8 @@ function collectLogEdges(projects) {
         const m = (ev.ref || '').match(/^对话原文\/([^/]+)\/([^/]+)$/)
         const ai = normAi(m ? m[1] : '')
         const sid = m ? m[2] : (ev.id || '')
+        // 会话号截 8 位作短 id：约 2.8e9 组合，本项目 <100 会话无碰撞；
+        // 若会话量上万需改用完整 sid（与 collectCorpusEdges 保持一致）
         const cid = `chat:${sid.slice(0, 8)}`
         nodes.push({ id: cid, type: 'chat', label: ev.title || ('会话' + sid.slice(0, 8)), ref: ev.ref })
         edges.push({ id: stableId(cid, 'in_project', `proj:${proj.name}`),
@@ -193,20 +193,10 @@ function buildGraph() {
   return { nodes: [...nodeMap.values()], edges: [...edgeMap.values()] }
 }
 
-// ── 邻接表反向查询（backlinks 思路）──
-function neighbors(graph, nodeId) {
-  const out = []
-  for (const e of graph.edges) {
-    if (e.from === nodeId) out.push({ dir: '出', rel: e.rel, other: e.to })
-    if (e.to === nodeId) out.push({ dir: '入', rel: e.rel, other: e.from })
-  }
-  return out
-}
+// ── 反向查询（backlinks 思路：直接从边表按rel过滤）──
 function answerWho(graph, aiName) {
   const ai = normAi(aiName)
   const id = `ai:${ai}`
-  const ns = neighbors(graph, id)
-  // neighbors() 不返回 rel，直接从边里取
   const actual = graph.edges.filter(e => e.from === id && e.rel === '实际参与')
                             .map(e => e.to.slice(5))
   const staffed = graph.edges.filter(e => e.from === id && e.rel === '工位编制')
@@ -261,8 +251,8 @@ function writeView(graph) {
   }
   q.push('', '## 手查命令', '',
     '```bash',
-    'node relation-engine.js --project AI公司软件化重构 --who 大肥鱼',
-    'node relation-engine.js --project AI公司软件化重构 --project-query AI公司软件化重构',
+    'node relation-engine.js --who 大肥鱼',
+    'node relation-engine.js --project-query AI公司软件化重构',
     '```', '')
   fs.writeFileSync(path.join(OUT_DIR, '关系查询-10秒接上.md'), q.join('\n') + '\n')
 }
