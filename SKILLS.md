@@ -32,6 +32,7 @@
 | 一键立项 / 打包 / 归档 | `new-project.sh` / `pack-project.sh` / `archive-project.sh` | 见各文件头 | ✅ |
 | 流程编排（1→并行→汇合） | `flow/engine.py` | `FlowEngine.load(...)` | ✅ |
 | ACP 桥接（对外协议） | `multi-ai-bridge-acp/bridge.py` | JSON-RPC over stdio | ✅ |
+| 推 GitHub（网络不稳） | 见能力卡5 | `git -c http.version=HTTP/1.1 ... push` | ✅ |
 | 派活给 AI 的验收清单 | `09-协作能力清单.md` | 谁可读/谁跳过 | ✅ |
 
 ---
@@ -76,6 +77,18 @@
 - **用法**：`python3 rootc.py "命令"`（`--role` 看主体/分身身份）
 - **原理**：走 rootd 守护（context=u:r:ksu:s0），proot 里普通 su 读不到 /data/data，这个能
 - **坑**：分身 /sdcard = `/storage/emulated/999`，主体 = `/storage/emulated/0`；root 可跨 user 读写两者
+
+### 能力 5：GitHub 推送（网络间歇性中断时）
+- **场景**：手机网络对 GitHub 间歇性 TLS 中断（`GnuTLS recv error (-110)` / 443 超时），普通 push 反复失败
+- **稳定解法**：强制 HTTP/1.1 + 低速容差
+  ```bash
+  TOKEN="ghp_..."
+  git -c http.version=HTTP/1.1 -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 \
+      -c http.extraheader="AUTHORIZATION: basic $(echo -n "x-access-token:$TOKEN" | base64 -w0)" \
+      push origin main
+  ```
+- **探连通**：`curl -s -m 15 -o /dev/null -w "%{http_code}" https://github.com`（多次，200 即通；这次第3次才通）
+- **坑**：token 走临时 header，remote URL 保持干净 `https://github.com/powehi-H3/ai-company.git`；别把 token 写进 remote
 
 ---
 
