@@ -633,9 +633,15 @@ window.__ModuleLoader__.load({
             h('span', { style: S.cardTitle }, `项目 ${allProj.length}`),
             h('span', { style: S.sub }, `${doing.length} 进行中 · ${d.projects.done.length} 归档`),
           ),
-          // 项目卡片单列全宽：展开的详情/需求BUG优化不挤在半屏
-          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
-            ...allProj.map((p) => {
+          // 按角色分组：主线 / 前置设计 / 试跑验证（用户反馈"看起来像重复项目"）
+          ...['main', 'design', 'trial', 'other'].map((rk) => {
+            const group = allProj.filter(p => (p.role?.key || 'other') === rk)
+            if (!group.length) return null
+            const label = group[0].role?.zh || '其他'
+            return h('div', { key: rk, style: { marginBottom: 14 } },
+              h('div', { style: { ...S.groupLabel, margin: '4px 0 8px' } }, `${label} · ${group.length}`),
+              h('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
+            ...group.map((p) => {
               const details = [
                 ['分类', p.catZh || '其他'],
                 ['进度', p.pct !== null ? `${p.pct}%${p.note ? ` (${p.note})` : ''}` : '文件里没有进度标记'],
@@ -658,7 +664,9 @@ window.__ModuleLoader__.load({
                 defaultOpen: (!p.hasZip && p.st !== 'done') || (p.issues && p.issues.length > 0 && p.name.includes('软件化')),
               })
             })
-          ),
+              ),
+            )
+          }),
           allProj.length === 0 ? h('div', { style: S.empty }, '暂无项目') : null,
         )
         } catch (e) { renderErr = String(e && e.stack ? e.stack.split('\n').slice(0,3).join(' | ') : e) }

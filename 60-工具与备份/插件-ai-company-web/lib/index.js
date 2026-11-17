@@ -234,6 +234,14 @@ async function collect() {
         if (pct !== null && nextStep) break
       }
 
+      // 项目角色：一条链上的位置（让界面能分组，用户反馈"看起来像重复"）
+      const projectRole = (n) => {
+        if (/软件化|重构|控制台/.test(n)) return { key: 'main', zh: '主线（当前在做）' }
+        if (/运转项目|模拟公司/.test(n)) return { key: 'design', zh: '前置设计（已完成）' }
+        if (/评审|试跑/.test(n)) return { key: 'trial', zh: '试跑验证' }
+        return { key: 'other', zh: '其他' }
+      }
+
       // 分类：按项目名关键词归类
       const CAT = [
         { key: 'product', zh: '产品研发', en: 'Product', re: /软件化|控制台|重构|视图|UI/i },
@@ -265,6 +273,7 @@ async function collect() {
         md: mdFiles.length,
         pct, note, pctSrc, nextStep,
         cat: cat.key, catZh: cat.zh, catEn: cat.en,
+        role: projectRole(name),
         parts,
         issues,
         hasZip: zips.length > 0,
@@ -288,6 +297,7 @@ async function collect() {
       return {
         name, files: 0, zips: 1, md: 0, pct: 100, note: '已归档',
         pctSrc: '', nextStep: '', cat: cat.key, catZh: cat.zh, parts: [], hasZip: true,
+        role: { key: 'other', zh: '已归档' },
       }
     })
   const done = [...doneDirs, ...looseZips]

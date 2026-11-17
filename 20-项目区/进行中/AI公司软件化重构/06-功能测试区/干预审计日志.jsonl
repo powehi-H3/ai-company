@@ -1,0 +1,5 @@
+{"at":"2026-11-17T09:47:45.537Z","action":"setStatus","target":"REQ-001","file":"11-公司建议问题优化/01-建议.md","toStatus":"已完成","risk":"low","outcome":"PENDING_APPROVAL","detail":"REQ-001"}
+{"at":"2026-11-17T09:48:23.384Z","action":"setStatus","target":"BUG-001","file":"11-公司建议问题优化/02-问题.md","toStatus":"已完成","risk":"low","outcome":"PENDING_APPROVAL","detail":"BUG-001"}
+{"at":"2026-11-17T09:48:25.641Z","action":"setStatus","target":"BUG-001","file":"11-公司建议问题优化/02-问题.md","toStatus":"处理中","risk":"low","outcome":"PENDING_APPROVAL","detail":"BUG-001"}
+{"at":"2026-11-17T09:48:35.111Z","action":"setStatus","target":"BUG-002","file":"11-公司建议问题优化/02-问题.md","toStatus":"已完成","risk":"low","outcome":"PENDING_APPROVAL","detail":"BUG-002"}
+{"at":"2026-11-17T09:48:54.974Z","action":"setStatus","target":"BUG-003","file":"11-公司建议问题优化/02-问题.md","toStatus":"已完成","risk":"low","outcome":"PENDING_APPROVAL","detail":"BUG-003"}
