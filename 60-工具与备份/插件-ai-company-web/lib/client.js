@@ -78,9 +78,9 @@ window.__ModuleLoader__.load({
       acc: { borderBottom: '1px solid rgba(255,255,255,0.05)' },
       accHead: { display: 'flex', alignItems: 'center', gap: 8, padding: '9px 0', cursor: 'pointer', userSelect: 'none' },
       accBody: { padding: '2px 0 10px 16px' },
-      kv: { display: 'flex', fontSize: 11.5, padding: '3px 0', lineHeight: 1.5 },
-      kvK: { opacity: 0.5, width: 52, flexShrink: 0 },
-      kvV: { flex: 1, wordBreak: 'break-word' },
+      kv: { display: 'flex', alignItems: 'flex-start', fontSize: 11.5, padding: '4px 0', lineHeight: 1.5, gap: 8 },
+      kvK: { opacity: 0.5, width: 46, flexShrink: 0, paddingTop: 1 },
+      kvV: { flex: 1, minWidth: 0, wordBreak: 'break-all', overflowWrap: 'anywhere' },
       tag: {
         fontSize: 10.5, padding: '2px 7px', borderRadius: 5,
         background: 'rgba(255,255,255,0.06)', opacity: 0.8,
@@ -287,7 +287,7 @@ window.__ModuleLoader__.load({
         )
       }
 
-      const TABS = ['总览', '项目', '文档', '团队', '制度']
+      const TABS = ['总览', '项目', '文档', '团队', '制度', '公司']
       const d = data
       const pct = d.autoTotal ? Math.round(d.autoPassed / d.autoTotal * 100) : 0
       const bad = d.seats.filter(s => s.dot === 'bad')
@@ -464,33 +464,6 @@ window.__ModuleLoader__.load({
           ),
           allProj.length === 0 ? h('div', { style: S.empty }, '暂无项目') : null,
         )
-
-        // 项目区下方：公司级 需求/BUG/优化建议
-        const ci = d.companyIssues || []
-        if (ci.length) {
-          const ciByType = (t) => ci.filter(x => x.type === t && x.section === '待处理')
-          body = h('div', {},
-            body,
-            h('div', { style: { ...S.card, marginTop: 10 } },
-              h('div', { style: S.cardHead },
-                h('span', { style: S.cardTitle }, '公司需求、bug、优化建议'),
-                h('span', { style: S.sub }, `${ci.length} 条`),
-              ),
-              h('div', { style: S.grid2 },
-                h('div', {},
-                  h('div', { style: S.groupLabel }, '💡 建议 (REQ)'),
-                  h(IssueList, { issues: ciByType('suggest') }),
-                ),
-                h('div', {},
-                  h('div', { style: S.groupLabel }, '🐛 BUG'),
-                  h(IssueList, { issues: ciByType('bug') }),
-                ),
-              ),
-              h('div', { style: S.groupLabel }, '⚙️ 优化 (OPT)'),
-              h(IssueList, { issues: ciByType('opt') }),
-            ),
-          )
-        }
         } catch (e) { renderErr = String(e && e.stack ? e.stack.split('\n').slice(0,3).join(' | ') : e) }
       }
 
@@ -606,7 +579,7 @@ window.__ModuleLoader__.load({
       }
 
       // ══════ 制度（可检置顶 + 主题分组折叠）══════
-      else {
+      else if (tab === 4) {
         const m = new Map(d.checks.map(c => [c.n, c]))
         const RULES = [
           { n: 1, t: '一个项目一个文件夹', auto: true, g: '目录与命名' },
@@ -687,6 +660,38 @@ window.__ModuleLoader__.load({
               })
             }),
           ),
+        )
+      }
+
+      // ══════ 公司（建议/BUG/优化，独占全宽）══════
+      else if (tab === 5) {
+        const ci = d.companyIssues || []
+        const ciByType = (t) => ci.filter(x => x.type === t)
+        const pending = (t) => ciByType(t).filter(x => x.section === '待处理').length
+        body = h('div', null,
+          h('div', { style: S.card },
+            h('div', { style: S.cardHead },
+              h('span', { style: S.cardTitle }, '公司建议 · 问题 · 优化'),
+              h('span', { style: S.sub }, `${ci.length} 条 · 全公司级`),
+            ),
+            h('div', { style: { fontSize: 11, opacity: 0.55, lineHeight: 1.5 } },
+              '这里收跨公司的建议、BUG、优化。项目自己的事在各项目卡片里，跟着项目走。'),
+          ),
+          ['suggest', 'bug', 'opt'].map((t) => {
+            const meta = {
+              suggest: { zh: '建议', badge: '建议', tone: 'good', icon: '💡' },
+              bug: { zh: 'BUG', badge: 'BUG', tone: 'bad', icon: '🐛' },
+              opt: { zh: '优化', badge: '优化', tone: 'warn', icon: '⚙️' },
+            }[t]
+            const list = ciByType(t)
+            return h('div', { key: t, style: { ...S.card, marginTop: 10 } },
+              h('div', { style: S.cardHead },
+                h('span', { style: S.cardTitle }, `${meta.icon} ${meta.zh}`),
+                h('span', { style: S.sub }, `${pending(t)} 待处理 / ${list.length}`),
+              ),
+              h(IssueList, { issues: list }),
+            )
+          }),
         )
       }
 
