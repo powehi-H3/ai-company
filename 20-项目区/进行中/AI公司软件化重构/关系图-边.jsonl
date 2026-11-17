@@ -248,5 +248,12 @@
 {"id":"40b060499b69e43d","from":"chat:6ad34834","rel":"由AI产生","to":"ai:ChatGPT","evidence":"对话原文/ChatGPT"}
 {"id":"12bbe3f894538805","from":"chat:6acc94ca","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
 {"id":"84f97f4b90fc2730","from":"chat:6acc94ca","rel":"由AI产生","to":"ai:ChatGPT","evidence":"对话原文/ChatGPT"}
+{"id":"789d17e35dc8609d","from":"art:d891f8c425063cbf","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
+{"id":"33519c9d11e1128e","from":"art:32e10cf76c2b79e5","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
+{"id":"7d9fd39fc3c906e3","from":"art:bc1f06ea7aa471e3","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
+{"id":"2d45289ccba76629","from":"art:d02f17d9f8a83908","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
+{"id":"1cc4b25e73407c96","from":"art:4717ad14ff6c87c6","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
+{"id":"5ab041b3e67b4e7c","from":"art:097bc2c1df059c3e","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
+{"id":"84e812f4e22c8baa","from":"art:9209ceb019ca6ccb","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
 {"id":"4f028162687d83a5","from":"chat:_local_5","rel":"由AI产生","to":"ai:ChatGPT","evidence":"对话原文/chatgpt/_无标题___local_5d.md"}
 {"id":"467e2cafbc0ce1fe","from":"chat:_6af923b","rel":"由AI产生","to":"ai:ChatGPT","evidence":"对话原文/chatgpt/构建AI工作系统__1___6af923b2.md"}

@@ -90,6 +90,13 @@
 - **探连通**：`curl -s -m 15 -o /dev/null -w "%{http_code}" https://github.com`（多次，200 即通；这次第3次才通）
 - **坑**：token 走临时 header，remote URL 保持干净 `https://github.com/powehi-H3/ai-company.git`；别把 token 写进 remote
 
+### 能力 6：定时任务（自动跑引擎/周期活）
+- **轮子**：DSH 官方 `schedule_create` / `schedule_list`（不用第三方 dsh-automation，官方已接管）
+- **实例**：`schedule-5cc7f73a-...` 每30分钟在独立会话跑 timeline+relation 引擎
+- **rrule 格式**：`DTSTART;TZID=Asia/Shanghai:YYYYMMDDTHHMMSS\nRRULE:FREQ=MINUTELY;INTERVAL=30`，或 `FREQ=DAILY;BYHOUR=9;BYMINUTE=0`
+- **关键**：target 选 `new_once`（后台任务独立会话，不污染主线）；prompt 写清"只跑指定命令、幂等安全、报错原样报"
+- **坑**：定时任务是给 agent 的指令（自然语言），不是直接写 cron；agent 会执行其中命令
+
 ---
 
 ## 三、登记新能力（造完轮子必做）
