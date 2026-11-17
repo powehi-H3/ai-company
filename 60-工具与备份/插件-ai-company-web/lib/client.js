@@ -184,6 +184,7 @@ window.__ModuleLoader__.load({
       const [loading, setLoading] = useState(!DATA_CACHE)
       const [q, setQ] = useState('')          // 搜索
       const [docFilter, setDocFilter] = useState({ kind: null })  // 文档类型筛选
+      const [timeline, setTimeline] = useState(null)   // 事件流内容（就地显示）
 
       const load = useCallback(async (force) => {
         if (!force && DATA_CACHE) { setData(DATA_CACHE); setLoading(false); return }
@@ -203,6 +204,28 @@ window.__ModuleLoader__.load({
           setFile(r.ok ? r : { ok: false, text: r.reason })
         } catch (e) { setFile({ ok: false, text: String(e.message || e) }) }
       }, [])
+
+      // 事件流：就地加载显示（不跳页）
+      const openTimeline = useCallback(async () => {
+        try {
+          const r = await api('/timeline')
+          setTimeline(r.ok ? r : { ok: false, text: r.reason })
+        } catch (e) { setTimeline({ ok: false, text: String(e.message || e) }) }
+      }, [])
+
+      // 事件流就地预览（覆盖面板，带关闭）
+      if (timeline) {
+        return h('div', { style: S.root },
+          h('div', { style: S.card },
+            h('div', { style: S.cardHead },
+              h('span', { style: S.cardTitle }, '事件流 · 10秒接上'),
+              h('button', { style: S.btn, onClick: () => setTimeline(null) }, '关闭'),
+            ),
+            timeline.ok ? h('pre', { style: { ...S.pre, maxHeight: '62vh' } }, timeline.text || '（空）')
+                        : h('div', { style: S.sub }, timeline.text),
+          ),
+        )
+      }
 
       if (loading) return h('div', { style: S.root }, h('div', { style: S.sub }, '正在读取公司目录…'))
       if (err) return h('div', { style: S.root },
@@ -259,6 +282,21 @@ window.__ModuleLoader__.load({
         const typeColors = ['#58a6ff', '#3fb950', '#d29922', '#a371f7', '#f778ba', '#8b949e']
 
         body = h('div', null,
+          // ⓪ 事件流入口（阶段①记忆的最小闭环成果，置顶）
+          h('div', {
+            style: { ...S.card, background: 'rgba(88,166,255,0.08)', borderColor: 'rgba(88,166,255,0.28)', cursor: 'pointer' },
+            onClick: openTimeline,
+          },
+            h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+              h('span', { style: { fontSize: 16 } }, '⚡'),
+              h('div', { style: S.rowMain },
+                h('div', { style: S.cardTitle }, '事件流 · 10 秒接上'),
+                h('div', { style: S.rowSub }, '断上下文/换 AI 也能看懂做到哪 · 点开看'),
+              ),
+              h('span', { style: S.badgeSm('info') }, '查看'),
+            ),
+          ),
+
           // ① 状态一句话 + 异常
           alerts.length ? h('div', {
             style: { ...S.card, background: 'rgba(248,81,73,0.06)', borderColor: 'rgba(248,81,73,0.22)' },

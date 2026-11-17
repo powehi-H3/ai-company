@@ -355,6 +355,21 @@ export function apply(ctx) {
       return { ok: true, path: p, text }
     },
     '/list': async (q) => ({ ok: true, files: await listFiles(q?.dir ?? '') }),
+    '/timeline': async () => {
+      const root = companyRoot()
+      // 事件流文件：优先软件化重构项目，再找其他项目的
+      const candidates = [
+        `${root}/20-项目区/进行中/AI公司软件化重构/事件流.md`,
+        `${root}/20-项目区/进行中/AI模拟公司运转项目/事件流.md`,
+      ]
+      for (const p of candidates) {
+        if (fs.existsSync(p)) {
+          const text = await readText(p, 60000)
+          return { ok: true, path: p, text }
+        }
+      }
+      return { ok: false, reason: '还没有事件流文件' }
+    },
   }
 
   // 启动预热：引擎加载插件时就扫一次，用户点开时数据已在内存
