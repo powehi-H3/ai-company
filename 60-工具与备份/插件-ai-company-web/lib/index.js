@@ -263,6 +263,9 @@ async function collect() {
           const raw = e.replace(/\.md$/, '')
           // 类型识别（按文件名规律）
           const KINDS = [
+            { key: 'suggest',zh: '建议',     re: /建议|REQ/ },
+            { key: 'bug',    zh: '问题',     re: /问题|BUG/ },
+            { key: 'opt',    zh: '优化',     re: /优化|OPT/ },
             { key: 'book',   zh: '项目书',   re: /项目书|计划书|方案|总纲|产品定义/ },
             { key: 'report', zh: '报告',     re: /报告|验证|测试|诊断|记录|清单/ },
             { key: 'main',   zh: '进度',     re: /主线|进度|CHANGELOG/ },
@@ -291,6 +294,7 @@ async function collect() {
   for (const er of [
     { dir: '10-办公区', project: '办公区' },
     { dir: '40-档案室', project: '档案室' },
+    { dir: '11-公司建议问题优化', project: '公司建议问题优化' },
   ]) {
     const base = path.join(root, er.dir)
     if (fs.existsSync(base)) await scanDocs(base, 0, er.project)
