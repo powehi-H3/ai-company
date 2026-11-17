@@ -399,6 +399,31 @@ async function collect() {
   }
   const overview = buildOverview({
     projects: { doing, done }, seats, docs, ruleTotal: RULES.length, graphNodes,
+    // 文件存在性校验：不存在的穿透目标直接置空，避免"点了没东西"
+    existsRel: (rel) => {
+      try { return fs.existsSync(path.join(root, rel)) } catch { return false }
+    },
+    // 某目录下第一个 00-*.md（项目没主线时兜底）
+    firstFileOf: (dirRel) => {
+      try {
+        const d = path.join(root, dirRel)
+        if (!fs.existsSync(d)) return ''
+        const f = fs.readdirSync(d).filter(x => /^00-.*\.md$/.test(x)).sort()[0]
+        return f ? `${dirRel}/${f}` : ''
+      } catch { return '' }
+    },
+    // 按员工名反查档案文件（如 千问 → 通义千问.md）
+    findArchive: (who) => {
+      try {
+        const dir = path.join(root, '40-档案室/01-员工档案')
+        if (!fs.existsSync(dir)) return ''
+        const files = fs.readdirSync(dir).filter(f => f.endsWith('.md') && !f.includes('模板'))
+        const hit = files.find(f => path.basename(f, '.md') === who)
+          || files.find(f => f.includes(who) || path.basename(f, '.md').includes(who))
+          || files.find(f => who.includes(path.basename(f, '.md')))
+        return hit ? `40-档案室/01-员工档案/${hit}` : ''
+      } catch { return '' }
+    },
   })
 
   const autoRules = RULES.filter((r) => r.auto)

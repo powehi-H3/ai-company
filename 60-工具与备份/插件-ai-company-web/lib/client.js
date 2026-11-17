@@ -251,7 +251,7 @@ window.__ModuleLoader__.load({
 
     // ══════ 上帝视角 · 空间俯瞰 + 叠层 + 穿透 ══════
     const SPACE_ICON = { company: '🏢', dept: '🏛', project: '📁', task: '📌', knowledge: '📚', temp: '🗂' }
-    function GodView({ data }) {
+    function GodView({ data, onChanged }) {
       const ov = data.overview
       const layers = ov?.layers || []
       const spaces = ov?.spaces || []
@@ -280,12 +280,36 @@ window.__ModuleLoader__.load({
         } catch (e) { setPeek({ label: n.label, text: '（穿透失败：' + e.message + '）' }) }
       }
 
+      // 待处理问题（这页最实用的部分：能直接看到该干什么、并改状态）
+      const todo = (data.companyIssues || []).filter(x => x.section === '待处理')
+
       return h('div', null,
+        // ⓪ 现在该干什么
+        todo.length ? h('div', { style: S.card },
+          h('div', { style: S.cardHead },
+            h('span', { style: S.cardTitle }, '📌 现在该干什么'),
+            h('span', { style: S.sub }, `${todo.length} 件待处理 · 点条目标题看详情`),
+          ),
+          h(IssueList, { issues: todo.slice(0, 8), onChanged }),
+          todo.length > 8 ? h('div', { style: { ...S.sub, marginTop: 6 } }, `还有 ${todo.length - 8} 件，去「公司」页看全部`) : null,
+        ) : h('div', { style: S.card },
+          h('div', { style: S.cardTitle }, '📌 现在该干什么'),
+          h('div', { style: { ...S.sub, marginTop: 6 } }, '没有待处理的事。可以去「公司」页提新需求。'),
+        ),
         // ① 俯瞰总览
         h('div', { style: S.card },
           h('div', { style: S.cardHead },
             h('span', { style: S.cardTitle }, '🛰 上帝视角'),
-            h('span', { style: S.sub }, `${ov.stats.total} 实体 · ${ov.stats.layers} 空间`),
+            h('span', { style: S.sub }, `${ov.stats.total} 个东西`),
+          ),
+          // 说清楚这页干嘛用（之前用户反馈"不会用"）
+          h('div', {
+            style: { fontSize: 11.5, lineHeight: 1.6, opacity: 0.75, background: 'rgba(88,166,255,0.07)',
+                     padding: '8px 10px', borderRadius: 8, marginBottom: 10 },
+          },
+            h('div', null, '这页回答一个问题：', h('b', null, '这家公司现在有什么、都在哪。')),
+            h('div', { style: { opacity: 0.75, marginTop: 2 } },
+              '上面一排按钮 = 6 种看东西的角度（公司/部门/项目/任务/知识/临时）。点一个，下面列出这个角度下的所有东西；再点某一条，就能打开它的原文。'),
           ),
           // 叠层统计条
           h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 } },
@@ -301,14 +325,13 @@ window.__ModuleLoader__.load({
               },
             }, `${SPACE_ICON[l.id] || '·'} ${l.zh} ${l.count}`)),
           ),
-          h('div', { style: { fontSize: 11, opacity: 0.5 } },
-            '点空间切换俯瞰层 · 点节点穿透到原文 · 同名实体已跨空间联邦合并'),
+          h('div', { style: { fontSize: 10.5, opacity: 0.45 } }, '↓ 选一个角度看'),
         ),
         // ② 当前层节点（可搜、可穿透）
         h('div', { style: S.card },
           h('div', { style: S.cardHead },
-            h('span', { style: S.cardTitle }, `${SPACE_ICON[active] || '·'} ${cur?.zh || active} · ${nodes.length}`),
-            h('span', { style: S.sub }, cur?.view || ''),
+            h('span', { style: S.cardTitle }, `${SPACE_ICON[active] || '·'} ${cur?.zh || active}`),
+            h('span', { style: S.sub }, `${nodes.length} 条 · 点任意一条看原文`),
           ),
           h('input', {
             value: query, placeholder: '搜节点…',
@@ -317,18 +340,25 @@ window.__ModuleLoader__.load({
                      background: 'rgba(255,255,255,0.05)', color: 'inherit', border: '1px solid rgba(255,255,255,0.1)', marginBottom: 8 },
           }),
           h('div', { style: { maxHeight: 320, overflow: 'auto' } },
-            ...nodes.slice(0, 80).map((n, i) => h('div', {
-              key: i,
-              onClick: () => peekNode(n),
-              style: { ...S.row, cursor: 'pointer', ...(i === Math.min(79, nodes.length - 1) ? { borderBottom: 'none' } : {}) },
-            },
-              h('span', { style: S.badgeSm(n.weight > 1 ? 'good' : 'info') }, n.type),
-              h('div', { style: S.rowMain },
-                h('div', { style: S.rowTitle }, n.label || n.id),
-                n.spaces?.length > 1 ? h('div', { style: S.rowSub }, `跨 ${n.spaces.length} 空间：${n.spaces.join('·')}`) : null,
-              ),
-              n.ref ? h('span', { style: { fontSize: 10, opacity: 0.4 } }, '穿透 ›') : null,
-            )),
+            ...nodes.slice(0, 80).map((n, i) => {
+              const canOpen = !!n.ref
+              return h('div', {
+                key: i,
+                onClick: canOpen ? () => peekNode(n) : undefined,
+                style: { ...S.row, cursor: canOpen ? 'pointer' : 'default',
+                         opacity: canOpen ? 1 : 0.55,
+                         ...(i === Math.min(79, nodes.length - 1) ? { borderBottom: 'none' } : {}) },
+              },
+                h('span', { style: S.badgeSm(n.weight > 1 ? 'good' : 'info') }, n.type),
+                h('div', { style: S.rowMain },
+                  h('div', { style: S.rowTitle }, n.label || n.id),
+                  n.spaces?.length > 1 ? h('div', { style: S.rowSub }, `跨 ${n.spaces.length} 空间：${n.spaces.join('·')}`) : null,
+                ),
+                canOpen
+                  ? h('span', { style: { fontSize: 10, opacity: 0.5, flexShrink: 0 } }, '打开 ›')
+                  : h('span', { style: { fontSize: 9.5, opacity: 0.3, flexShrink: 0 } }, '无原文'),
+              )
+            }),
             nodes.length === 0 ? h('div', { style: S.empty }, '该层暂无节点') : null,
             nodes.length > 80 ? h('div', { style: S.empty }, `仅显示前 80 / ${nodes.length}`) : null,
           ),
@@ -864,7 +894,7 @@ window.__ModuleLoader__.load({
 
       // ══════ 上帝视角（空间俯瞰 + 叠层 + 穿透）══════
       else if (tab === 6) {
-        body = h(GodView, { data: d })
+        body = h(GodView, { data: d, onChanged: () => load(true) })
       }
 
       // 渲染兜底：出错时显示原因，不显示空白

@@ -102,21 +102,44 @@ export function buildOverview(data) {
   const nodes = []
   const add = (id, label, type, space, ref) => nodes.push({ id, label, type, space, ref })
 
-  // 项目空间
+  const exists = data.existsRel || (() => true)
+  // 项目空间 → 穿透到该项目的主文件（按优先级探测，避免"无原文"）
+  const firstFileOf = data.firstFileOf || null
   const projects = [...(data.projects?.doing || []), ...(data.projects?.done || [])]
-  for (const p of projects) add(p.name, p.name, 'project', 'project')
-  // 部门/AI 空间
-  for (const s of data.seats || []) add(s.who, s.who, 'ai', 'dept')
-  // 知识空间：事件流里的对话/产出（从关系图节点取）
+  for (const p of projects) {
+    const base = (data.projects?.doing || []).some(x => x.name === p.name)
+      ? '20-项目区/进行中' : '20-项目区/已完成'
+    const cands = ['00-主线与进度.md', '00-项目说明.md', 'README.md', '00-人员分配表.md', '00-启动检查清单.md']
+    let rel = ''
+    for (const c of cands) {
+      if (exists(`${base}/${p.name}/${c}`)) { rel = `${base}/${p.name}/${c}`; break }
+    }
+    if (!rel && firstFileOf) rel = firstFileOf(`${base}/${p.name}`) || ''
+    add(p.name, p.name, 'project', 'project', rel)
+  }
+  // 部门/AI 空间 → 穿透到员工档案（名字可能不一致，用候选探测）
+  for (const s of data.seats || []) {
+    const cands = [`40-档案室/01-员工档案/${s.who}.md`, `40-档案室/01-员工档案/${s.who.trim()}.md`]
+    let rel = ''
+    for (const c of cands) if (exists(c)) { rel = c; break }
+    // 名字对不上时，反向找档案文件名里包含该名字的
+    if (!rel) rel = data.findArchive ? (data.findArchive(s.who) || '') : ''
+    add(s.who, s.who, 'ai', 'dept', rel)
+  }
+  // 知识空间：对话/产出 → 穿透到原文
   for (const n of data.graphNodes || []) {
     if (n.type === 'chat' || n.type === 'artifact') add(n.id, n.label, n.type, 'knowledge', n.ref)
   }
-  // 公司空间：规矩数、文档数作为节点
-  add('rules', `${data.ruleTotal} 条规矩`, 'metric', 'company')
-  add('docs', `${data.docs?.length || 0} 份文档`, 'metric', 'company')
+  // 公司空间 → 穿透到对应总文件（不再是无处可去的数字）
+  add('rules', `${data.ruleTotal} 条规矩`, 'metric', 'company', '00-公司规则.md')
+  add('docs', `${data.docs?.length || 0} 份文档`, 'metric', 'company', 'SKILLS.md')
+
+  // 修正不存在的穿透目标（避免点了没东西）
+  for (const n of nodes) {
+    if (n.ref && !exists(n.ref)) n.ref = ''
+  }
 
   const federated = dedupe(federate(nodes))
-  // 叠层：每个空间一层，统计层内节点数
   const layers = SPACES.map(s => ({
     ...s,
     count: federated.filter(n => n.spaces.includes(s.id)).length,
