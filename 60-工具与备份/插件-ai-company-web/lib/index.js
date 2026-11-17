@@ -29,6 +29,31 @@ async function readText(p, max = 200000) {
     return s.length > max ? s.slice(0, max) : s
   } catch { return '' }
 }
+
+// 解析问题需求池 md：抓 `- [编号] 标题 —— 说明（来源）`
+// 返回 { type, id, title, detail, section } 数组
+function parseIssues(text) {
+  const out = []
+  if (!text) return out
+  let section = ''
+  for (const line of text.split('\n')) {
+    const sh = line.match(/^##\s+(.+)$/)
+    if (sh) { section = sh[1].replace(/[（(].*$/, '').trim(); continue }
+    const m = line.match(/^-\s*\[([^\]]+)\]\s*(.+)$/)
+    if (!m) continue
+    const id = m[1].trim()
+    const rest = m[2].trim()
+    const parts = rest.split(/\s+——\s+|——/)
+    const title = (parts[0] || '').trim()
+    const detail = (parts.slice(1).join('——') || '').trim()
+    let type = 'other'
+    if (/REQ|P-REQ|建议/.test(id)) type = 'suggest'
+    else if (/BUG|P-BUG|问题/.test(id)) type = 'bug'
+    else if (/OPT|P-OPT|优化/.test(id)) type = 'opt'
+    out.push({ id, type, title, detail, section })
+  }
+  return out
+}
 async function countFiles(d) {
   let n = 0
   const walk = async (dir, depth) => {
@@ -212,6 +237,12 @@ async function collect() {
         if (n > 0) parts.push({ name: sd.replace(/^\d+-/, ''), n })
       }
 
+      // 项目自己的问题需求池（跟项目走）
+      let issues = []
+      if (mdFiles.includes('00-问题需求池.md')) {
+        issues = parseIssues(await readText(path.join(pd, '00-问题需求池.md')))
+      }
+
       out.push({
         name,
         files: await countFiles(pd),
@@ -220,6 +251,7 @@ async function collect() {
         pct, note, pctSrc, nextStep,
         cat: cat.key, catZh: cat.zh, catEn: cat.en,
         parts,
+        issues,
         hasZip: zips.length > 0,
       })
     }
@@ -316,6 +348,16 @@ async function collect() {
     } catch {}
   }
 
+  // 公司级建议/问题/优化（11-公司建议问题优化/）
+  let companyIssues = []
+  const ciDir = path.join(root, '11-公司建议问题优化')
+  if (fs.existsSync(ciDir)) {
+    for (const f of ['01-建议.md', '02-问题.md', '03-优化.md']) {
+      const p = path.join(ciDir, f)
+      if (fs.existsSync(p)) companyIssues.push(...parseIssues(await readText(p)))
+    }
+  }
+
   const checks = []
   const ruleStatus = (n, ok, detail) => checks.push({ n, ok, detail })
   ruleStatus(1, doing.every((p) => p.files > 0), `${doing.length} 个项目各自成夹`)
@@ -332,7 +374,7 @@ async function collect() {
   return {
     ok: true, root, rooms, seats,
     projects: { doing, done, held: [] },
-    cabinets, checks, docs,
+    cabinets, checks, docs, companyIssues,
     ruleTotal: RULES.length,
     autoTotal: autoRules.length,
     autoPassed: checks.filter((c) => c.ok).length,

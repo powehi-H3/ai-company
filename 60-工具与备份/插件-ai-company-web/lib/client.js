@@ -152,8 +152,35 @@ window.__ModuleLoader__.load({
       )
     }
 
+    // 建议/BUG/优化 条目列表：点标题展开具体内容（按草图：名字 → 展开 → 具体内容）
+    const ISSUE_LABEL = { suggest: '建议', bug: 'BUG', opt: '优化', other: '项' }
+    function IssueList({ issues, limit }) {
+      if (!issues || !issues.length) return h('div', { style: S.empty }, '暂无')
+      const list = limit ? issues.slice(0, limit) : issues
+      return h('div', {},
+        ...list.map((it, i) => h(IssueItem, { key: i, it })),
+      )
+    }
+    function IssueItem({ it }) {
+      const [open, setOpen] = useState(false)
+      return h('div', { style: { borderBottom: '1px solid rgba(255,255,255,0.05)' } },
+        h('div', {
+          onClick: () => setOpen(!open),
+          style: { display: 'flex', alignItems: 'center', gap: 6, padding: '6px 2px', cursor: 'pointer', userSelect: 'none' },
+        },
+          h('span', { style: { fontSize: 9, opacity: 0.4, width: 9 } }, open ? '▾' : '▸'),
+          h('span', { style: { ...S.badgeSm(it.type === 'bug' ? 'bad' : it.type === 'suggest' ? 'good' : 'warn'), flexShrink: 0 } }, ISSUE_LABEL[it.type] || it.type),
+          h('span', { style: { fontSize: 11, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, it.title),
+          h('span', { style: { fontSize: 9, opacity: 0.35 } }, it.id),
+        ),
+        open ? h('div', {
+          style: { fontSize: 10.5, lineHeight: 1.5, opacity: 0.75, padding: '2px 8px 8px 24px', color: 'inherit' },
+        }, it.detail || '（无详细说明）', it.section ? h('div', { style: { opacity: 0.5, marginTop: 3 } }, `状态：${it.section}`) : null) : null,
+      )
+    }
+
     // 2 列网格卡片（工位/项目用），点击展开详情
-    function Tile({ name, sub, badge, badgeTone, bar, next, details, defaultOpen }) {
+    function Tile({ name, sub, badge, badgeTone, bar, next, details, defaultOpen, issues }) {
       const [open, setOpen] = useState(!!defaultOpen)
       return h('div', { style: S.tile },
         h('div', { style: S.tileHead, onClick: () => setOpen(!open) },
@@ -170,6 +197,10 @@ window.__ModuleLoader__.load({
             style: { background: 'rgba(88,166,255,0.08)', padding: '6px 8px', borderRadius: 6, fontSize: 10.5, lineHeight: 1.45, marginBottom: 6 },
           }, next) : null,
           details && details.map((d, i) => h(KV, { key: i, k: d[0], v: d[1] })),
+          issues && issues.length ? h('div', { style: { marginTop: 8 } },
+            h('div', { style: { ...S.kvK, marginBottom: 2 } }, `需求/BUG/优化 (${issues.length})`),
+            h(IssueList, { issues, limit: 5 }),
+          ) : null,
         ) : null,
       )
     }
@@ -426,12 +457,40 @@ window.__ModuleLoader__.load({
                 bar: p.pct,
                 next: p.nextStep ? `→ ${p.nextStep}` : null,
                 details,
-                defaultOpen: !p.hasZip && p.st !== 'done',
+                issues: p.issues,
+                defaultOpen: (!p.hasZip && p.st !== 'done') || (p.issues && p.issues.length > 0 && p.name.includes('软件化')),
               })
             })
           ),
           allProj.length === 0 ? h('div', { style: S.empty }, '暂无项目') : null,
         )
+
+        // 项目区下方：公司级 需求/BUG/优化建议
+        const ci = d.companyIssues || []
+        if (ci.length) {
+          const ciByType = (t) => ci.filter(x => x.type === t && x.section === '待处理')
+          body = h('div', {},
+            body,
+            h('div', { style: { ...S.card, marginTop: 10 } },
+              h('div', { style: S.cardHead },
+                h('span', { style: S.cardTitle }, '公司需求、bug、优化建议'),
+                h('span', { style: S.sub }, `${ci.length} 条`),
+              ),
+              h('div', { style: S.grid2 },
+                h('div', {},
+                  h('div', { style: S.groupLabel }, '💡 建议 (REQ)'),
+                  h(IssueList, { issues: ciByType('suggest') }),
+                ),
+                h('div', {},
+                  h('div', { style: S.groupLabel }, '🐛 BUG'),
+                  h(IssueList, { issues: ciByType('bug') }),
+                ),
+              ),
+              h('div', { style: S.groupLabel }, '⚙️ 优化 (OPT)'),
+              h(IssueList, { issues: ciByType('opt') }),
+            ),
+          )
+        }
         } catch (e) { renderErr = String(e && e.stack ? e.stack.split('\n').slice(0,3).join(' | ') : e) }
       }
 
