@@ -355,18 +355,15 @@ export function apply(ctx) {
       return { ok: true, path: p, text }
     },
     '/list': async (q) => ({ ok: true, files: await listFiles(q?.dir ?? '') }),
-    '/timeline': async () => {
+    '/timeline': async (q) => {
       const root = companyRoot()
-      // 事件流文件：优先软件化重构项目，再找其他项目的
-      const candidates = [
-        `${root}/20-项目区/进行中/AI公司软件化重构/事件流.md`,
-        `${root}/20-项目区/进行中/AI模拟公司运转项目/事件流.md`,
-      ]
-      for (const p of candidates) {
-        if (fs.existsSync(p)) {
-          const text = await readText(p, 60000)
-          return { ok: true, path: p, text }
-        }
+      const base = `${root}/20-项目区/进行中/AI公司软件化重构`
+      // kind=auto → 机器生成版；默认 → 人工策展版
+      const file = q?.kind === 'auto'
+        ? `${base}/事件流-机器生成.md`
+        : `${base}/事件流.md`
+      if (fs.existsSync(file)) {
+        return { ok: true, path: file, text: await readText(file, 60000) }
       }
       return { ok: false, reason: '还没有事件流文件' }
     },

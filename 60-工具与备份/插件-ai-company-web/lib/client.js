@@ -206,14 +206,14 @@ window.__ModuleLoader__.load({
       }, [])
 
       // 事件流：就地加载显示（不跳页）
-      const openTimeline = useCallback(async () => {
+      const openTimeline = useCallback(async (kind) => {
         try {
-          const r = await api('/timeline')
-          setTimeline(r.ok ? r : { ok: false, text: r.reason })
+          const r = await api('/timeline' + (kind === 'auto' ? '?kind=auto' : ''))
+          setTimeline(r.ok ? { ...r, kind } : { ok: false, text: r.reason })
         } catch (e) { setTimeline({ ok: false, text: String(e.message || e) }) }
       }, [])
 
-      // 事件流就地预览（覆盖面板，带关闭）
+      // 事件流就地预览（覆盖面板，带关闭 + 版本切换）
       if (timeline) {
         return h('div', { style: S.root },
           h('div', { style: S.card },
@@ -221,7 +221,18 @@ window.__ModuleLoader__.load({
               h('span', { style: S.cardTitle }, '事件流 · 10秒接上'),
               h('button', { style: S.btn, onClick: () => setTimeline(null) }, '关闭'),
             ),
-            timeline.ok ? h('pre', { style: { ...S.pre, maxHeight: '62vh' } }, timeline.text || '（空）')
+            // 版本切换
+            h('div', { style: { display: 'flex', gap: 6, marginBottom: 9 } },
+              h('button', {
+                onClick: () => openTimeline('curated'),
+                style: { ...S.btn, background: timeline.kind !== 'auto' ? '#4B67B4' : 'rgba(255,255,255,0.05)', color: timeline.kind !== 'auto' ? '#fff' : 'inherit' },
+              }, '策展版'),
+              h('button', {
+                onClick: () => openTimeline('auto'),
+                style: { ...S.btn, background: timeline.kind === 'auto' ? '#4B67B4' : 'rgba(255,255,255,0.05)', color: timeline.kind === 'auto' ? '#fff' : 'inherit' },
+              }, '机器版'),
+            ),
+            timeline.ok ? h('pre', { style: { ...S.pre, maxHeight: '58vh' } }, timeline.text || '（空）')
                         : h('div', { style: S.sub }, timeline.text),
           ),
         )
@@ -285,7 +296,7 @@ window.__ModuleLoader__.load({
           // ⓪ 事件流入口（阶段①记忆的最小闭环成果，置顶）
           h('div', {
             style: { ...S.card, background: 'rgba(88,166,255,0.08)', borderColor: 'rgba(88,166,255,0.28)', cursor: 'pointer' },
-            onClick: openTimeline,
+            onClick: () => openTimeline('curated'),
           },
             h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
               h('span', { style: { fontSize: 16 } }, '⚡'),
