@@ -130,11 +130,134 @@ def _send_v2_inner(app_key, text, dry_run=False):
     if dry_run:
         return {"ok": True, "code": 0, "detail": f"dry-run：文字已进输入框（未发送），bounds={bounds}", "input_bounds": bounds}
 
-    # 7. 点发送（回车）
-    rc, out, err = root_cmd("input keyevent 66 2>&1", timeout=30)
-    time.sleep(2)
+    # 7. 发送：优先点发送按钮，回退回车；发送后必须验证输入框已清空
+    sent = _tap_send_button(pkg)
+    if not sent:
+        root_cmd("input keyevent 66 2>&1", timeout=30)
+    time.sleep(2.5)
 
-    return {"ok": True, "code": 0, "detail": f"已发送（enter），bounds={bounds}", "input_bounds": bounds}
+    # 8. 验证：重新 dump，确认输入框已清空
+    ok, detail = _verify_sent(pkg, text)
+    if not ok:
+        return {"ok": False, "code": 11,
+                "detail": f"发送未确认：{detail}（发送方式={'按钮' if sent else '回车'}）",
+                "input_bounds": bounds}
+
+    return {"ok": True, "code": 0,
+            "detail": f"已确认发送（{'按钮' if sent else '回车'}）：输入框已清空",
+            "input_bounds": bounds}
+
+
+def _dump_ui():
+    """dump 当前界面到 /sdcard，返回 xml 文本。"""
+    root_cmd("uiautomator dump /sdcard/_sv2_verify.xml >/dev/null 2>&1; echo DONE", timeout=60)
+    try:
+        return open("/sdcard/_sv2_verify.xml", encoding="utf-8", errors="ignore").read()
+    except Exception:
+        return ""
+
+
+def _input_text_of(xml):
+    """取输入框里的文字（text 属性），找不到返回 None。"""
+    for m in re.finditer(r'<node[^>]*class="android\.widget\.EditText"[^>]*>', xml):
+        t = re.search(r'\btext="([^"]*)"', m.group(0))
+        return t.group(1) if t else ""
+    return None
+
+
+def _tap_send_button(pkg):
+    """
+    找并点击发送按钮。策略：
+      1. 找 content-desc 含「发送/send」的节点
+      2. 找输入框右侧、同高度的可点节点（宽高比接近 1 的方形按钮）
+    成功点中返回 True，否则 False（调用方回退回车）。
+    """
+    xml = _dump_ui()
+    if not xml:
+        return False
+
+    # 策略1：content-desc / text 明确是发送
+    for m in re.finditer(r'<node[^>]*>', xml):
+        s = m.group(0)
+        desc = re.search(r'content-desc="([^"]*)"', s)
+        txt = re.search(r'\btext="([^"]*)"', s)
+        val = ((desc.group(1) if desc else "") + (txt.group(1) if txt else "")).lower()
+        if any(k in val for k in ("发送", "send", "提交")):
+            b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', s)
+            if b:
+                x1, y1, x2, y2 = map(int, b.groups())
+                if x2 > x1 and y2 > y1:
+                    root_cmd(f"input tap {(x1+x2)//2} {(y1+y2)//2} 2>&1", timeout=30)
+                    return True
+
+    # 策略2：输入框右侧同高的方形可点节点
+    inp = None
+    for m in re.finditer(r'<node[^>]*class="android\.widget\.EditText"[^>]*>', xml):
+        b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', m.group(0))
+        if b:
+            inp = tuple(map(int, b.groups()))
+            break
+    if not inp:
+        return False
+    ix1, iy1, ix2, iy2 = inp
+    icx, icy = (ix1 + ix2) // 2, (iy1 + iy2) // 2
+
+    best = None
+    for m in re.finditer(r'<node[^>]*>', xml):
+        s = m.group(0)
+        if 'clickable="true"' not in s:
+            continue
+        b = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', s)
+        if not b:
+            continue
+        x1, y1, x2, y2 = map(int, b.groups())
+        w, h = x2 - x1, y2 - y1
+        if w <= 0 or h <= 0 or w > 200 or h > 200:
+            continue
+        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+        # 必须在输入框中心右侧（不是 x2 右侧：按钮可能压在输入框范围内）
+        if cx <= icx:
+            continue
+        # 纵向必须和输入框重叠（同一条工具栏）
+        if abs(cy - icy) > max(h, 120):
+            continue
+        # 方形优先，越靠右越好（发送键通常在最右）
+        score = abs(w - h) + abs(cy - icy) - (cx - icx) * 0.5
+        if best is None or score < best[0]:
+            best = (score, cx, cy)
+
+    if best:
+        _, cx, cy = best
+        root_cmd(f"input tap {cx} {cy} 2>&1", timeout=30)
+        return True
+    return False
+
+
+def _verify_sent(pkg, text):
+    """
+    发送后验证：输入框必须已清空（或不再是我们的文字）。
+    返回 (ok, detail)。
+    """
+    for attempt in range(3):
+        time.sleep(1.5)
+        xml = _dump_ui()
+        if not xml:
+            continue
+        # package 必须还在目标 App
+        pm = re.search(r'package="([^"]+)"', xml)
+        if pm and pm.group(1) != pkg:
+            return False, f"界面已切走（{pm.group(1)}）"
+        cur = _input_text_of(xml)
+        if cur is None:
+            return True, "输入框已不存在（已发送）"
+        # 输入框里还是我们的文字（取前 30 字比对）
+        probe = text[:30]
+        if cur.strip() and probe and probe in cur:
+            if attempt < 2:
+                continue
+            return False, "输入框内容仍在，未发送成功"
+        return True, "输入框已清空"
+    return False, "无法确认（dump 失败）"
 
 
 if __name__ == "__main__":

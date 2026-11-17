@@ -1,0 +1,30 @@
+{
+  "name": "local-ai-company-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI 公司控制台 · Cordis 网页插件（React + CSS，dsh-context 同款技术路线）",
+  "type": "module",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": ["lib/index.js", "lib/client.js", "cordis.patch.yml"],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-conversation"]
+    },
+    "compatibility": {
+      "dshReleases": { "0.2.2-rc.1+": "compatible" }
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "~4.1.0",
+    "@deepseek-ai/dsh-client-ui-primitives": "0.2.2-rc.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}

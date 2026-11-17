@@ -1,0 +1,5 @@
+# Bundle patch: host half = lib/index.js（Node 侧，读公司目录）
+# client 声明让网页版加载 lib/client.js 作为浏览器半侧
+- insert:
+    - id: local-ai-company-web
+      name: local-ai-company-web
