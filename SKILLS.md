@@ -34,6 +34,8 @@
 | ACP 桥接（对外协议） | `multi-ai-bridge-acp/bridge.py` | JSON-RPC over stdio | ✅ |
 | 推 GitHub（网络不稳） | 见能力卡5 | `git -c http.version=HTTP/1.1 ... push` | ✅ |
 | 派活给 AI 的验收清单 | `09-协作能力清单.md` | 谁可读/谁跳过 | ✅ |
+| **心跳派活（队列/状态机/重试）** | `heartbeat.js` | `node heartbeat.js enqueue --title "..."` | ✅ 新 |
+| **心跳 worker（真执行）** | `heartbeat-worker.js` | `node heartbeat-worker.js run` | ✅ 新 |
 
 ---
 
@@ -96,6 +98,34 @@
 - **rrule 格式**：`DTSTART;TZID=Asia/Shanghai:YYYYMMDDTHHMMSS\nRRULE:FREQ=MINUTELY;INTERVAL=30`，或 `FREQ=DAILY;BYHOUR=9;BYMINUTE=0`
 - **关键**：target 选 `new_once`（后台任务独立会话，不污染主线）；prompt 写清"只跑指定命令、幂等安全、报错原样报"
 - **坑**：定时任务是给 agent 的指令（自然语言），不是直接写 cron；agent 会执行其中命令
+
+---
+
+### 能力 7：心跳派活（Heartbeat）★核心
+- **路径**：`60-工具与备份/脚本/heartbeat.js`（队列）+ `heartbeat-worker.js`（执行）
+- **解决**：AI 之间发不了消息、必须人传话；任务派下去没人自动接
+- **设计依据**：Paperclip（114k★）的 Heartbeat 机制 —— **agents stay dormant until real work arrives**（无事不唤醒，只事件驱动）
+- **状态机**：`backlog → todo → in_progress → in_review → done`，另有 `blocked` / `cancelled`
+- **用法**：
+  ```bash
+  # 派活
+  node heartbeat.js enqueue --title "任务描述" --assignee DSH --project X
+  # 执行（自动领取→调AI→回写→归档）
+  node heartbeat-worker.js run
+  # 查看
+  node heartbeat.js list / stats
+  ```
+- **核心机制**：
+  1. **原子领取**：`O_EXCL` 创建锁文件，两个 worker 抢同一任务只有一个成功
+  2. **失败重试**：最多 3 次，超限自动转 `blocked` 等人介入
+  3. **自动归档**：完成后写入事件流（`事件流-日志.jsonl`）
+- **执行层**：走 `acpx deepseek-harness prompt -s ai-company-worker`，模型 `["workbuddy","glm-5.3"]`
+  - ⚠️ **必须用 `prompt`（持久会话）**，不能用 `exec`（一次性会话会重置成默认模型，报 no API key）
+- **踩过的坑**：
+  1. acp profile 默认没有 WorkBuddy 插件 → 需移植 `dsh-connect-workbuddy` + 配置（1309行）
+  2. 模型 ID 格式是数组 `["workbuddy","glm-5.3"]`，不是 `workbuddy/glm-5.3`
+  3. acpx 输出混入 `[thinking]` / `[tool]` 噪音，需过滤
+- **验证**：15 项单测（状态机/并发/重试/死信）+ 3 次真实任务执行（消耗 WorkBuddy 积分）
 
 ---
 
