@@ -170,8 +170,8 @@ window.__ModuleLoader__.load({
         },
           h('span', { style: { fontSize: 9, opacity: 0.4, width: 9 } }, open ? '▾' : '▸'),
           h('span', { style: { ...S.badgeSm(it.type === 'bug' ? 'bad' : it.type === 'suggest' ? 'good' : 'warn'), flexShrink: 0 } }, ISSUE_LABEL[it.type] || it.type),
-          h('span', { style: { fontSize: 11, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, it.title),
-          h('span', { style: { fontSize: 9, opacity: 0.35 } }, it.id),
+          h('span', { style: { fontSize: 11.5, flex: 1, minWidth: 0, lineHeight: 1.4, wordBreak: 'break-word' } }, it.title),
+          h('span', { style: { fontSize: 9, opacity: 0.35, flexShrink: 0 } }, it.id),
         ),
         open ? h('div', {
           style: { fontSize: 10.5, lineHeight: 1.5, opacity: 0.75, padding: '2px 8px 8px 24px', color: 'inherit' },
@@ -194,13 +194,14 @@ window.__ModuleLoader__.load({
           : null,
         open ? h('div', { style: S.tileBody },
           next ? h('div', {
-            style: { background: 'rgba(88,166,255,0.08)', padding: '6px 8px', borderRadius: 6, fontSize: 10.5, lineHeight: 1.45, marginBottom: 6 },
+            style: { background: 'rgba(88,166,255,0.08)', padding: '6px 8px', borderRadius: 6, fontSize: 10.5, lineHeight: 1.45, marginBottom: 8 },
           }, next) : null,
-          details && details.map((d, i) => h(KV, { key: i, k: d[0], v: d[1] })),
-          issues && issues.length ? h('div', { style: { marginTop: 8 } },
-            h('div', { style: { ...S.kvK, marginBottom: 2 } }, `需求/BUG/优化 (${issues.length})`),
-            h(IssueList, { issues, limit: 5 }),
+          // 需求/BUG/优化 放最前，跟公司 tab 同样的展示
+          issues && issues.length ? h('div', { style: { marginBottom: 10 } },
+            h('div', { style: { ...S.cardTitle, fontSize: 12, marginBottom: 2 } }, `需求 / BUG / 优化 · ${issues.length} 条`),
+            h(IssueList, { issues }),
           ) : null,
+          details && details.map((d, i) => h(KV, { key: i, k: d[0], v: d[1] })),
         ) : null,
       )
     }
@@ -437,8 +438,8 @@ window.__ModuleLoader__.load({
             h('span', { style: S.cardTitle }, `项目 ${allProj.length}`),
             h('span', { style: S.sub }, `${doing.length} 进行中 · ${d.projects.done.length} 归档`),
           ),
-          // 统一 2 列网格：分类只是卡片上的小标签，不再每组单独网格
-          h('div', { style: S.grid2 },
+          // 项目卡片单列全宽：展开的详情/需求BUG优化不挤在半屏
+          h('div', { style: { display: 'flex', flexDirection: 'column', gap: 10 } },
             ...allProj.map((p) => {
               const details = [
                 ['分类', p.catZh || '其他'],
