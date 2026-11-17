@@ -270,13 +270,13 @@ window.__ModuleLoader__.load({
       // 节点 → 可穿透的源路径（从关系图节点 ref 反推）
       const peekNode = async (n) => {
         if (!n.ref) { setPeek({ label: n.label, text: '（该节点无穿透引用：' + n.id + '）' }); return }
-        let rel = n.ref
+        // 只传相对路径，由后端统一解析与校验（审查 P2-5：不硬编码 root、不信任 ref）
+        let rel = String(n.ref).replace(/^\.\.?\//, '')
         if (rel.startsWith('对话原文/')) rel = '60-工具与备份/知识库/' + rel
-        else if (!rel.includes('AI公司/')) rel = '20-项目区/进行中/AI公司软件化重构/' + rel
-        const full = '/storage/emulated/0/AI专用文件夹/AI公司/' + rel
+        else if (!rel.startsWith('20-项目区/') && !rel.startsWith('60-工具与备份/')) rel = '20-项目区/进行中/AI公司软件化重构/' + rel
         try {
-          const r = await api('/file', { path: full })
-          setPeek({ label: n.label, text: r.ok ? r.text.slice(0, 4000) : ('（读取失败：' + (r.reason || '') + '，路径 ' + rel + '）') })
+          const r = await api('/file', { path: rel })
+          setPeek({ label: n.label, text: r.ok ? r.text.slice(0, 4000) : ('（读取失败：' + (r.reason || '') + '）') })
         } catch (e) { setPeek({ label: n.label, text: '（穿透失败：' + e.message + '）' }) }
       }
 

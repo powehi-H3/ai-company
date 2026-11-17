@@ -4,8 +4,12 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import fsp from 'node:fs/promises'
+import crypto from 'node:crypto'
 import { SPACES, buildOverview, routeSpace, issueConsent, checkConsent,
-         riskOf, auditRecord, previewAction, applyStatusChange } from './spaces.js'
+         riskOf, auditRecord, previewAction, applyStatusChange, detectSection } from './spaces.js'
+
+// 同文件写锁：把并发 apply 串行化，避免互相覆盖（审查 P1-5）
+const FILE_LOCKS = new Map()
 
 const CANDIDATES = [
   '/storage/emulated/0/AI专用文件夹/AI公司',
@@ -31,6 +35,10 @@ async function readText(p, max = 200000) {
     return s.length > max ? s.slice(0, max) : s
   } catch { return '' }
 }
+// 不截断读（写回场景必须用这个，否则会截断丢数据 —— 见审查报告 P0-2）
+async function readTextFull(p) {
+  return await fsp.readFile(p, 'utf8')
+}
 
 // 解析问题需求池 md：抓 `- [编号] 标题 —— 说明（来源）`
 // 返回 { type, id, title, detail, section } 数组
@@ -51,10 +59,11 @@ function parseIssues(text, file) {
     const parts = rest.split(/\s+——\s+|——/)
     const title = (parts[0] || '').trim()
     const detail = (parts.slice(1).join('——') || '').trim()
+    // 精确前缀判定（审查 P2-10：/REQ/ 先判会把 BUG-REQ-xxx 误判成 suggest）
     let type = 'other'
-    if (/REQ|P-REQ|建议/.test(id)) type = 'suggest'
-    else if (/BUG|P-BUG|问题/.test(id)) type = 'bug'
-    else if (/OPT|P-OPT|优化/.test(id)) type = 'opt'
+    if (/BUG/.test(id)) type = 'bug'
+    else if (/OPT/.test(id)) type = 'opt'
+    else if (/REQ|建议/.test(id)) type = 'suggest'
     out.push({ id, type, title, detail, section, file: file || '' })
   }
   return out
@@ -405,6 +414,20 @@ async function collect() {
   }
 }
 
+// 统一路径安全解析（审查 P0-1/P2-1：所有读路径必须走这里）
+// 返回 root 内的绝对路径，越界返回 null
+function resolveInsideRoot(root, rel, { exts = null, names = null } = {}) {
+  if (!rel || typeof rel !== 'string') return null
+  if (rel.includes('\0')) return null
+  if (path.isAbsolute(rel)) return null
+  const abs = path.resolve(root, rel)
+  // 必须在 root 之内（含 root 本身）
+  if (abs !== root && !abs.startsWith(root + path.sep)) return null
+  if (exts && !exts.some(e => abs.toLowerCase().endsWith(e))) return null
+  if (names && !names.includes(path.basename(abs))) return null
+  return abs
+}
+
 async function listFiles(dirRel) {
   const root = companyRoot()
   if (!root) return []
@@ -433,12 +456,23 @@ export function apply(ctx) {
   const routes = {
     '/collect': async (q) => collectCached(q?.force === '1'),
     '/file': async (q) => {
-      const p = q?.path
-      if (!p || !p.includes('AI公司')) return { ok: false, reason: 'path rejected' }
-      const text = await readText(p, 60000)
-      return { ok: true, path: p, text }
+      const root = companyRoot()
+      if (!root) return { ok: false, reason: '找不到公司目录' }
+      // 只接受 root 内的相对路径；越界/绝对路径一律拒绝（审查 P0-1）
+      const abs = resolveInsideRoot(root, q?.path, { exts: ['.md', '.jsonl', '.txt', '.json'] })
+      if (!abs) return { ok: false, reason: 'path rejected（只允许公司目录内的相对路径）' }
+      try {
+        const text = await readTextFull(abs)
+        return { ok: true, path: path.relative(root, abs), text: text.slice(0, 60000) }
+      } catch (e) { return { ok: false, reason: '读取失败：' + String(e.message || e) } }
     },
-    '/list': async (q) => ({ ok: true, files: await listFiles(q?.dir ?? '') }),
+    '/list': async (q) => {
+      const root = companyRoot()
+      if (!root) return { ok: false, reason: '找不到公司目录' }
+      const dirRel = q?.dir ?? ''
+      if (dirRel && !resolveInsideRoot(root, dirRel)) return { ok: false, reason: 'dir rejected' }
+      return { ok: true, files: await listFiles(dirRel) }
+    },
     // ④空间引擎：空间路由 + 俯瞰（干涉前只读，不需授权）
     '/spaces': async (q) => {
       const root = companyRoot()
@@ -446,23 +480,13 @@ export function apply(ctx) {
       try {
         const s = q?.space ? routeSpace(q.space, root) : null
         const d = await collectCached(q?.force === '1')
-        return { ok: true, space: s ? { id: s.id, zh: s.zh, icon: s.icon, abs: s.abs } : null,
+        return { ok: true, space: s ? { id: s.id, zh: s.zh, icon: s.icon, dir: s.dir } : null,
                  spaces: SPACES.map(x => ({ id: x.id, zh: x.zh, icon: x.icon, view: x.view })),
                  overview: d.overview }
       } catch (e) { return { ok: false, code: e.code, reason: String(e.message || e) } }
     },
-    // ④授权闸门：干预类操作（迁移/写）需显式授权，一次性 token
-    '/consent': async (q) => {
-      if (q?.issue) {
-        const token = issueConsent(q.action || 'write', { target: q.target || '' })
-        return { ok: true, token, hint: '30秒内有效，单次消费' }
-      }
-      if (q?.token && q?.action) {
-        const r = checkConsent(q.token, q.action, { target: q.target || '' })
-        return { ok: r.ok, ...r }
-      }
-      return { ok: false, reason: '需 issue=1 或 token+action' }
-    },
+    // 说明：原独立 /consent 路由已删除（审查 P1-4：无条件签发授权令牌 = 闸门形同虚设）
+    // 授权签发只保留在 /intervene 的 preview 内，绑定完整 payload。
 
     // ⑤真实干预：preview（预览/申请授权）→ apply（校验+原子写+审计）
     '/intervene': async (q) => {
@@ -483,54 +507,80 @@ export function apply(ctx) {
         return null
       }
 
-      // 目标文件白名单：只接受公司内、问题池 md，防路径穿越
+      // 目标文件白名单：只接受公司内、问题池 md（basename 全等，防前缀绕过 P2-8）
+      const POOL_NAMES = ['00-问题需求池.md', '01-建议.md', '02-问题.md', '03-优化.md']
       const resolvePoolFile = (rel) => {
-        if (!rel || !rel.endsWith('.md')) return null
-        if (rel.includes('..') || path.isAbsolute(rel)) return null
-        const okNames = ['00-问题需求池.md', '01-建议.md', '02-问题.md', '03-优化.md']
-        if (!okNames.some(n => rel.endsWith(n))) return null
-        const abs = path.join(root, rel)
-        return abs.startsWith(root) && fs.existsSync(abs) ? abs : null
+        const abs = resolveInsideRoot(root, rel, { exts: ['.md'], names: POOL_NAMES })
+        return abs && fs.existsSync(abs) ? abs : null
       }
 
       if (q?.mode === 'preview') {
         // 两段式第一段：读文件、生成人类可读预览、签发票据（绑定完整 payload）
         if (!q.id || !q.toStatus) return { ok: false, reason: 'preview 需要 id 与 toStatus（票据绑定完整参数）' }
+        if (!['待处理', '处理中', '已完成'].includes(q.toStatus))
+          return { ok: false, reason: 'toStatus 只允许 待处理/处理中/已完成' }
         const abs = resolvePoolFile(q.file)
         if (!abs) return { ok: false, reason: '目标文件不在白名单或不存在' }
-        const text = await readText(abs)
-        const payload = { id: q.id, file: q.file, toStatus: q.toStatus, title: q.title || q.id }
-        const preview = previewAction(action, payload)
-        const token = issueConsent(action, payload)
-        const auditErr = await writeAudit(auditRecord(action, payload, 'PENDING_APPROVAL', q.id || ''))
+        const text = await readTextFull(abs)             // 全量读，避免末尾条目探测不到（P0-2 同类）
+        const fromStatus = detectSection(text, q.id)     // 真实探测当前区块
+        if (fromStatus === '未找到') return { ok: false, reason: `文件里找不到编号 ${q.id}` }
+        if (fromStatus === q.toStatus) return { ok: false, reason: `该条目已在「${q.toStatus}」，无需变更` }
+        // 票据只绑定三要素（id/file/toStatus），避免展示字段变化导致校验脆弱
+        const bind = { id: q.id, file: q.file, toStatus: q.toStatus }
+        const preview = previewAction(action, { ...bind, fromStatus, title: q.title || q.id })
+        const token = issueConsent(action, bind)
+        const auditErr = await writeAudit(auditRecord(action, { ...bind, fromStatus }, 'PENDING_APPROVAL', q.id || ''))
         return { ok: true, preview, token, expiresInSec: 60, auditErr }
       }
 
       if (q?.mode === 'apply') {
         // 两段式第二段：校验票据（单次消费）→ 改内容 → 原子写 → 审计
-        const payload = { id: q.id, file: q.file, toStatus: q.toStatus, title: q.title || q.id }
-        const gate = checkConsent(q.token, action, payload)
+        const bind = { id: q.id, file: q.file, toStatus: q.toStatus }
+        const gate = checkConsent(q.token, action, bind)
         if (!gate.ok) {
-          await writeAudit(auditRecord(action, payload, 'BLOCKED', gate.reason))
+          await writeAudit(auditRecord(action, bind, 'BLOCKED', gate.reason))
           return { ok: false, code: gate.code, reason: gate.reason }
         }
         const abs = resolvePoolFile(q.file)
         if (!abs) {
-          await writeAudit(auditRecord(action, payload, 'BLOCKED', '目标文件不在白名单'))
+          await writeAudit(auditRecord(action, bind, 'BLOCKED', '目标文件不在白名单'))
           return { ok: false, reason: '目标文件不在白名单或不存在' }
         }
-        const text = await readText(abs)
-        const r = applyStatusChange(text, q.id, q.toStatus)
-        if (!r.ok) {
-          await writeAudit(auditRecord(action, payload, 'BLOCKED', r.reason))
-          return { ok: false, reason: r.reason }
+        // 同一文件串行化，避免两个 apply 并发写丢改动（P1-5）
+        const prev = FILE_LOCKS.get(abs) || Promise.resolve()
+        const task = prev.then(async () => {
+          // 全量读（不截断），否则写回会丢文件尾部（P0-2）
+          const text = await readTextFull(abs)
+          // 重探当前区块，与 preview 时的 fromStatus 比对（P2-4）
+          const nowStatus = detectSection(text, q.id)
+          if (nowStatus === '未找到') return { ok: false, reason: `文件里已找不到编号 ${q.id}（可能被改动）` }
+          if (nowStatus === q.toStatus) return { ok: false, reason: `该条目已在「${q.toStatus}」，无需变更` }
+          if (q.fromStatus && nowStatus !== q.fromStatus)
+            return { ok: false, reason: `状态已变化（现为「${nowStatus}」），请重新预览` }
+
+          const r = applyStatusChange(text, q.id, q.toStatus)
+          if (!r.ok) return { ok: false, reason: r.reason }
+
+          // 审计先写：写失败即拒绝执行（P1-6）
+          const auditErr = await writeAudit(auditRecord(action, { ...bind, fromStatus: nowStatus }, 'ALLOWED', r.movedLine))
+          if (auditErr) return { ok: false, reason: '审计写入失败，已拒绝执行：' + auditErr }
+
+          // 原子写：唯一 tmp 名 + finally 清理
+          const tmp = abs + '.' + crypto.randomBytes(4).toString('hex') + '.tmp'
+          try {
+            await fsp.writeFile(tmp, r.text, 'utf8')
+            await fsp.rename(tmp, abs)
+          } catch (e) {
+            try { await fsp.unlink(tmp) } catch {}
+            return { ok: false, reason: '写入失败：' + String(e.message || e) }
+          }
+          return { ok: true, movedLine: r.movedLine, file: q.file, createdSection: r.createdSection,
+                   hint: '状态已更新，可点刷新查看' }
+        })
+        FILE_LOCKS.set(abs, task.catch(() => {}))
+        try { return await task } finally {
+          if (FILE_LOCKS.get(abs) === task || FILE_LOCKS.get(abs) === task.catch(() => {})) FILE_LOCKS.delete(abs)
         }
-        // 原子写：tmp + rename
-        const tmp = abs + '.tmp'
-        await fsp.writeFile(tmp, r.text, 'utf8')
-        await fsp.rename(tmp, abs)
-        const auditErr = await writeAudit(auditRecord(action, payload, 'ALLOWED', r.movedLine))
-        return { ok: true, movedLine: r.movedLine, file: q.file, auditErr, hint: '状态已更新，可点刷新查看' }
       }
 
       return { ok: false, reason: '需 mode=preview 或 mode=apply' }
@@ -539,10 +589,25 @@ export function apply(ctx) {
     // 读干预审计日志（上帝视角可查看）
     '/audit': async () => {
       const root = companyRoot()
+      if (!root) return { ok: false, reason: '找不到公司目录' }
       const p = path.join(root, '20-项目区/进行中/AI公司软件化重构/06-功能测试区/干预审计日志.jsonl')
       if (!fs.existsSync(p)) return { ok: true, records: [] }
-      const lines = (await readText(p)).split('\n').filter(Boolean)
-      return { ok: true, records: lines.slice(-50).map(l => { try { return JSON.parse(l) } catch { return null } }).filter(Boolean) }
+      // 读尾部（审查 P2-9：readText 截头留尾，日志超限后看不到最新）
+      const st = await fsp.stat(p)
+      const TAIL = 256 * 1024
+      const start = Math.max(0, st.size - TAIL)
+      const fh = await fsp.open(p, 'r')
+      let buf
+      try {
+        buf = Buffer.alloc(st.size - start)
+        await fh.read(buf, 0, buf.length, start)
+      } finally { await fh.close() }
+      let text = buf.toString('utf8')
+      if (start > 0) text = text.slice(text.indexOf('\n') + 1)   // 丢掉被截断的首行
+      const lines = text.split('\n').filter(Boolean)
+      let bad = 0
+      const recs = lines.slice(-50).map(l => { try { return JSON.parse(l) } catch { bad++; return null } }).filter(Boolean)
+      return { ok: true, records: recs, parseFailed: bad }
     },
 
     '/timeline': async (q) => {

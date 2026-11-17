@@ -257,5 +257,7 @@
 {"id":"84e812f4e22c8baa","from":"art:9209ceb019ca6ccb","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
 {"id":"bc9e4796584f3e69","from":"art:53c289d05f9f06cc","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
 {"id":"91263772990de61a","from":"art:e3d10f66d4a71d82","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
+{"id":"1a9c4a86ea109f56","from":"art:6e32cdfcda58445d","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
+{"id":"338c9f1045e25c9a","from":"art:5288fe0341861060","rel":"属于项目","to":"proj:AI公司软件化重构","evidence":"事件日志/AI公司软件化重构"}
 {"id":"4f028162687d83a5","from":"chat:_local_5","rel":"由AI产生","to":"ai:ChatGPT","evidence":"对话原文/chatgpt/_无标题___local_5d.md"}
 {"id":"467e2cafbc0ce1fe","from":"chat:_6af923b","rel":"由AI产生","to":"ai:ChatGPT","evidence":"对话原文/chatgpt/构建AI工作系统__1___6af923b2.md"}
