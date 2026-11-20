@@ -102,7 +102,7 @@
 
 
 | S-20 | `60-工具与备份/脚本/multi-ai-bridge-adapters/send_v2.py` | `_send_v2_inner()` 将外部文本直接插入 `root_cmd(f'input text "{text}" ...')`，而 `root_cmd` 最终把命令交给 rootc/rootd 执行；双引号内的命令替换/引号闭合可改变命令语义 | 除已禁用的 AppAgent/base.py 路径外，另一条 send_v2/flow runner 投递路径仍可能将普通消息变成 root 命令；形成安全禁用绕过 | 立即禁用 send_v2.py 的真实投递及任何调用它的 flow runner；统一改为参数数组/安全 stdin 传输，禁止将不可信文本拼进 shell；以命令替换、引号闭合、反引号、换行、Unicode 等恶意输入做回归与独立审查 |
-| S-21 | `60-工具与备份/脚本/multi-ai-bridge-adapters/send_v2.py` | `_dump_and_get_pkg()` 与 `_dump_ui()` 将 UI hierarchy dump 写入固定共享存储路径 `/sdcard/_send_v2.xml`、`/sdcard/_sv2_verify.xml`，未见可靠清理、访问限制或并发隔离 | UI XML 可能包含当前 App 页面文字/会话片段；共享存储残留造成隐私暴露，并发任务可能互相覆盖/读错 | 改为私有、唯一、任务级临时目录；最小权限；成功/失败均 finally 清理；验证不留残留且并发隔离；在修复前禁止真实设备投递 |
+| S-21 | `60-工具与备份/脚本/multi-ai-bridge-adapters/send_v2.py`、`send_intent.py` | 两种投递脚本均将 UI hierarchy dump 写入固定共享存储路径（`/sdcard/_send_v2.xml`、`/sdcard/_sv2_verify.xml`、`/sdcard/_send_intent_ui.xml`），未见可靠清理、访问限制或并发隔离 | UI XML 可能包含当前 App 页面文字/会话片段；共享存储残留造成隐私暴露，并发任务可能互相覆盖/读错 | 改为私有、唯一、任务级临时目录；最小权限；成功/失败均 finally 清理；验证不留残留且并发隔离；在修复前禁止真实设备投递 |
 | S-22 | `60-工具与备份/脚本/multi-ai-bridge-adapters/send_v2.py`、`flow/runner.py` | `send_v2(dry_run=True)` 仍启动目标 App、点击输入框并填入文字；随后 runner 将 `ok=True` 的节点调用 `mark_done()` 并写回流程 JSON | dry-run 会改变设备界面/留下草稿，却被记录为节点已完成；可能造成未发送任务被误判完成、重复执行或漏执行 | 将 dry-run 设计为纯预览，不触碰设备、不改持久状态；把“已预览/待执行/已投递/已确认回复/已验收”拆成独立状态；仅真实执行且满足验收条件后才能完成节点；补端到端状态机测试 |
 
 **新增安全门禁：** S-20 至 S-22 已发现 send_v2/flow runner 存在独立于 AppAgent 的风险。S-14 的 ACP/AppAgent 禁用说明不能覆盖这条路径；在 S-20 修复并独立审查前，所有调用 `send_v2.py` 的真实发送均禁用；在 S-21 修复前不得运行真实设备投递；在 S-22 修复前不得用 runner 推进正式流程状态。
@@ -132,3 +132,7 @@
 | S-34 | `60-工具与备份/脚本/pack-project.sh`、`archive-project.sh` | 两个脚本均使用 `"$DIR"/*` 复制文件；该 glob 默认不包含隐藏文件。归档脚本对主目录复制未检查完整性，工位复制还用 `|| true` 忽略错误；打包脚本工位复制也忽略错误 | 隐藏配置/附件/元数据可能未进入包；复制失败仍可能继续生成不完整包，归档脚本随后删除源目录 | 使用支持 dotfiles 的显式完整清单（如 find -print0）；逐文件复制并校验数量/哈希；任何复制失败即中止；归档前源/包清单逐项一致 |
 | S-35 | `60-工具与备份/脚本/archive-project.sh` | 归档文件名只包含项目名、完成/搁置标签和日期；同一天重复归档会命中相同 OUT 路径，未拒绝已存在目标，也未验证旧 ZIP 是否为本次生成 | `zip` 可能更新已有归档并保留旧条目；目标包可能混入历史内容，无法证明与当前源目录一致 | 目标存在时默认失败；使用唯一临时文件名，完整验证后原子发布；不得更新已有归档 |
 | S-36 | `60-工具与备份/脚本/archive-project.sh`（并涉及 `pack-project.sh`） | archive-project.sh 未校验项目名，直接拼接 `20-项目区/$stage/$P`；当 `P=..` 时，进行中路径可解析为 `20-项目区` 本身，随后 `rm -rf "$SRC"` 会删除整个项目区。pack-project.sh 虽有字符校验，但未拒绝 `.`/`..` 等特殊名称 | **极高危路径遍历/批量删除**：错误或恶意项目名可能让归档脚本将整个项目区当作源目录并删除 | 立即维持 archive-project.sh 禁用；统一严格项目 ID 白名单（拒绝 `.`、`..`、路径分隔符、控制字符）；使用 realpath 验证源目录必须是状态目录下的直接子目录；删除前再次校验其 canonical path；加针对 `..` 的不可绕过测试 |
+
+
+| S-37 | `60-工具与备份/脚本/multi-ai-bridge-adapters/send_intent.py` | 发送后验证逻辑在找不到输入框节点时将 `cur is None` 视为“已发送”，而不是“无法确认”；仅以输入框文字前 20 字消失作为成功证据 | App 页面跳转、UI dump 失败或输入框结构变化都可能被误报为发送成功；任务调度层可能把未投递任务当成已交付 | 必须确认目标 App/user 仍在前台、发送后出现本次消息气泡或稳定 message ID，且输入框状态明确；缺任一证据都返回“未确认”，不得报告成功 |
+| S-38 | `60-工具与备份/脚本/multi-ai-bridge-adapters/send_intent.py` | `activate_user()` 用 `f'u{user}' in out` 做焦点用户校验，属于子串匹配；例如 user=1 可能匹配 u10 等更长 user ID | 可能错误判定目标 Android user 已激活，进而向错误用户/App 界面填入或发送消息 | 解析 dumpsys 的完整 user ID 字段并精确比较数值；不匹配/格式未知即中止；加入 user=1/10/100 等前缀冲突测试 |
