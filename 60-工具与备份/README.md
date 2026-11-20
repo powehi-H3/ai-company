@@ -34,6 +34,7 @@
 
 - `send_v2.py` 及其调用的 `flow/runner.py`：S-20 至 S-22，真实投递禁用，runner 仅允许只读状态查看。
 - `send_intent.py`：除 S-12 dry-run 有副作用外，S-37/S-38 还存在发送误报和 Android user 子串校验问题；真实投递暂停。
+- `heartbeat.js`：S-39 task ID 未校验即拼入锁文件路径，存在路径穿越删除风险；队列状态机与 worker 继续暂停。
 - `timeline-engine.js`：S-23、S-27、S-28，路径穿越、跨项目会话串线和 ID 碰撞未修复前禁止写入运行。
 - `relation-engine.js`：S-24，输出目录仍指向前代项目，禁止默认写入。
 - `index.py`、`verify.py`：S-25、S-26，分别存在先删旧索引和真实设备副作用，不得作为安全维护/测试命令。
