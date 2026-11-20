@@ -185,3 +185,5 @@
 - `分身查看AI对话.py`：S-49 将完整 App 私有 SQLite/WAL 复制到固定 `/sdcard/_aidb_tmp*` 并且不清理共享副本和本地临时目录；可能长期泄露私聊数据库，当前禁止运行。
 
 - `new-project.sh`：S-50 所谓“确认项目名/ Ctrl+C 取消”只是提示，没有等待输入，脚本立即建目录；中途失败会留半成品，暂停正式立项使用。
+
+- `multi-ai-bridge-acp/src/server.js`：S-51 Python 子进程退出/异常时没有 pending 请求超时与拒绝清理，ACP 调用可能永久挂起；stdout/stderr 异常缺乏诊断。
