@@ -145,7 +145,7 @@
 - `multi-ai-bridge-adapters/deepseek.py`：会话 ID 被拼接进 SQL 表名，必须先做白名单校验；外部 ACP 输入不得直接传入。
 - `multi-ai-bridge-acp/src/server.js`：回复轮询未用发送前游标/角色/消息关联，可能把旧消息误判为本次回复；不能作为可靠闭环证据。
 - `multi-ai-bridge-scripts/sanitize.py`：脱敏规则不完整；导出对话不得标记为“已充分脱敏”，必须限制访问并做二次扫描。
-- `archive-project.sh`：见 S-03/S-04/S-07；修复并独立审查前禁止用于真实项目。
+- `archive-project.sh`：除 S-03/S-04/S-07 外，S-34/S-35/S-36 确认隐藏文件漏包、同日目标包混写及 `P=..` 可将整个项目区当源目录删除；必须保持禁用。
 - `pack-project.sh`：存在静默删除同名旧包风险，修复前禁止覆盖已有包。
 
 完整登记见根目录 `AI-规则冲突与兼容表.md` 的 S-01 至 S-36。上述代码本轮仅静态审查，未运行、未修改；当前设备部署状态未验证。
