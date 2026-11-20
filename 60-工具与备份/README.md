@@ -20,9 +20,9 @@
 
 ## 当前已知风险
 
-- `new-project.sh`、`pack-project.sh`、`archive-project.sh` 已登记 S-01 至 S-07、S-34 至 S-38 风险，见根目录 `AI-规则冲突与兼容表.md`。
+- `new-project.sh`、`pack-project.sh`、`archive-project.sh` 已登记 S-01 至 S-07、S-34 至 S-36 风险，见根目录 `AI-规则冲突与兼容表.md`。
 - 事件流、关系引擎、ACP bridge、适配器和控制台插件是现有候选资产；其当前部署状态仍需逐节点验证。
-- Heartbeat 队列/worker、流程 runner、同步脚本、消息投递 dry-run、rootc、ACP/AppAgent 发送链、数据库复制、DeepSeek SQL 查询和脱敏模块均已发现安全/语义问题，详见根目录 `AI-规则冲突与兼容表.md` S-08 至 S-36；在修复和独立审查前，不得用于无人值守或真实生产任务。
+- Heartbeat 队列/worker、流程 runner、同步脚本、消息投递 dry-run、rootc、ACP/AppAgent 发送链、数据库复制、DeepSeek SQL 查询和脱敏模块均已发现安全/语义问题，详见根目录 `AI-规则冲突与兼容表.md` S-08 至 S-39；在修复和独立审查前，不得用于无人值守或真实生产任务。
 - 历史脚本的“推荐/可用”标签不是当前生产状态证明。
 
 ## 维护
