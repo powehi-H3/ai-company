@@ -176,3 +176,8 @@
 - `aidrop.sh`：固定 Backspace 30 次会删除用户已有草稿，dry-run 也会触碰真实界面（S-40）；固定 UI dump 不清理且并发共用（S-41）；真实投递暂停。
 - `heartbeat-worker.js`：仅凭 acpx 退出码即将任务 done，未验收非空产物（S-42）；所有任务结果硬编码写入前代项目事件流（S-43）；继续暂停。
 - `flow/engine.py`：重复节点 ID 静默覆盖、未检测依赖环/未知 completed ID（S-44）；无效流程不得进入 runner。
+
+- `multi-ai-bridge-acp/src/server.js`：ACP session 未绑定真实 App 会话，消息和回复可能跨会话（S-45）；真实投递/回复链继续禁用。
+- `find_input.py`：Compose 坐标兜底可能选中非输入控件（S-46）；不得用于无人值守真实点击。
+- `flow/runner.py`：YG 人工节点被自动标记完成（S-47）；runner 继续只读。
+- `插件-ai-company-web`：`/intervene` 通过 GET 改状态且 token 放 URL（S-48）；写路由禁用，直到 POST/CSRF/身份授权完善。
