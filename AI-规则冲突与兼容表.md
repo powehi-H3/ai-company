@@ -139,3 +139,10 @@
 
 
 | S-39 | `60-工具与备份/脚本/heartbeat.js` | `tryLock(id)`、`unlock(id)`、`lockHolder(id)` 直接将外部/队列中的 task ID 拼入 `path.join(LOCKS, id + '.lock')`，未限制 ID 格式或验证最终路径仍在锁目录内；`release` 会无条件 unlink | 恶意/损坏任务 ID 含 `../` 时可让锁文件读写/删除越出 locks 目录；release 路径可能删除其他位置同名 `.lock` 文件 | task ID 使用严格固定格式与长度白名单；对 canonical path 做锁目录边界校验；锁文件 unlink 前验证其真实路径/owner；补路径穿越和任意锁删除测试；修复前 heartbeat 队列保持暂停 |
+
+
+| S-40 | `60-工具与备份/脚本/aidrop.sh` | 输入文字前固定执行 30 次 Backspace 清空输入框，没有先读取并区分用户已有草稿；即使传入 `--dry-run` 也会先清空原内容、再填入测试文字 | 用户未发送的草稿可能被不可恢复地删除；dry-run 本身会破坏当前 App 界面状态 | 禁止直接清空未知输入框；先读取当前内容并要求显式覆盖确认，或使用新会话/隔离测试页；dry-run 不触碰设备；加入“已有草稿”保护测试 |
+| S-41 | `60-工具与备份/脚本/aidrop.sh` | UI dump 固定写入 `/data/local/tmp/aidrop_ui.xml`，脚本退出时 trap 只切回 DSH，没有删除 dump；异常退出也会留下 UI 页面文本，且并发调用共用同一文件 | 页面/会话片段可能残留在临时目录；并发任务可能互相覆盖或读取错页面 | 使用任务级唯一私有临时目录；退出时 finally/trap 清理；并发隔离；验证失败/中断后零残留 |
+| S-42 | `60-工具与备份/脚本/heartbeat-worker.js` | `runTask()` 只要 `acpx prompt` 进程以退出码 0 结束就返回 `ok:true`，即使清洗后的输出为空、仅含运行噪音或没有可验收产物；`processOne()` 随即调用 `hb('done')` 将任务标记完成 | 空回复、模型未实际执行、仅返回状态文本等情况都可能被记为成功，造成任务漏做但系统显示完成 | 将“进程成功”与“任务验收通过”分离；要求非空结果、产物路径/哈希或明确验收项；默认进入 review/pending_acceptance，不能由 worker 自行 done |
+| S-43 | `60-工具与备份/脚本/heartbeat-worker.js` | `appendToTimeline()` 将所有队列任务结果硬编码追加到前代项目 `20-项目区/进行中/AI公司软件化重构/事件流-日志.jsonl`，不检查 `task.project` 归属 | 新系统或其他项目的任务结果会污染前代项目事件流，形成跨项目串线和历史归属错误 | 根据已验证的 project ID 映射到对应项目事件流；无项目/未知项目进入全局未分类日志；禁止默认写入前代项目 |
+| S-44 | `60-工具与备份/脚本/flow/engine.py` | 构造 FlowEngine 时用字典推导式接收节点，重复 ID 会静默覆盖；没有检测依赖环；state.completed 中不存在的节点 ID 也会被接受 | 流程定义错误可能静默丢节点、永远无 next step，或显示不存在节点已完成；runner 可能把错误流程写回并持续卡死 | load 时验证唯一节点 ID、边合法性、DAG 无环、completed ID 均存在且状态合法；无效流程 fail-closed；补重复 ID/环/未知状态测试 |
