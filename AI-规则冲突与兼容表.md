@@ -136,3 +136,6 @@
 
 | S-37 | `60-工具与备份/脚本/multi-ai-bridge-adapters/send_intent.py` | 发送后验证逻辑在找不到输入框节点时将 `cur is None` 视为“已发送”，而不是“无法确认”；仅以输入框文字前 20 字消失作为成功证据 | App 页面跳转、UI dump 失败或输入框结构变化都可能被误报为发送成功；任务调度层可能把未投递任务当成已交付 | 必须确认目标 App/user 仍在前台、发送后出现本次消息气泡或稳定 message ID，且输入框状态明确；缺任一证据都返回“未确认”，不得报告成功 |
 | S-38 | `60-工具与备份/脚本/multi-ai-bridge-adapters/send_intent.py` | `activate_user()` 用 `f'u{user}' in out` 做焦点用户校验，属于子串匹配；例如 user=1 可能匹配 u10 等更长 user ID | 可能错误判定目标 Android user 已激活，进而向错误用户/App 界面填入或发送消息 | 解析 dumpsys 的完整 user ID 字段并精确比较数值；不匹配/格式未知即中止；加入 user=1/10/100 等前缀冲突测试 |
+
+
+| S-39 | `60-工具与备份/脚本/heartbeat.js` | `tryLock(id)`、`unlock(id)`、`lockHolder(id)` 直接将外部/队列中的 task ID 拼入 `path.join(LOCKS, id + '.lock')`，未限制 ID 格式或验证最终路径仍在锁目录内；`release` 会无条件 unlink | 恶意/损坏任务 ID 含 `../` 时可让锁文件读写/删除越出 locks 目录；release 路径可能删除其他位置同名 `.lock` 文件 | task ID 使用严格固定格式与长度白名单；对 canonical path 做锁目录边界校验；锁文件 unlink 前验证其真实路径/owner；补路径穿越和任意锁删除测试；修复前 heartbeat 队列保持暂停 |
