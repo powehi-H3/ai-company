@@ -20,7 +20,7 @@
 
 ## 当前已知风险
 
-- `new-project.sh`、`pack-project.sh`、`archive-project.sh` 已登记 S-01 至 S-07、S-34 至 S-36 风险，见根目录 `AI-规则冲突与兼容表.md`。
+- `new-project.sh`、`pack-project.sh`、`archive-project.sh` 已登记 S-01 至 S-07、S-34 至 S-38 风险，见根目录 `AI-规则冲突与兼容表.md`。
 - 事件流、关系引擎、ACP bridge、适配器和控制台插件是现有候选资产；其当前部署状态仍需逐节点验证。
 - Heartbeat 队列/worker、流程 runner、同步脚本、消息投递 dry-run、rootc、ACP/AppAgent 发送链、数据库复制、DeepSeek SQL 查询和脱敏模块均已发现安全/语义问题，详见根目录 `AI-规则冲突与兼容表.md` S-08 至 S-36；在修复和独立审查前，不得用于无人值守或真实生产任务。
 - 历史脚本的“推荐/可用”标签不是当前生产状态证明。
@@ -33,6 +33,7 @@
 ## 追加审计禁用项（2026-11-20）
 
 - `send_v2.py` 及其调用的 `flow/runner.py`：S-20 至 S-22，真实投递禁用，runner 仅允许只读状态查看。
+- `send_intent.py`：除 S-12 dry-run 有副作用外，S-37/S-38 还存在发送误报和 Android user 子串校验问题；真实投递暂停。
 - `timeline-engine.js`：S-23、S-27、S-28，路径穿越、跨项目会话串线和 ID 碰撞未修复前禁止写入运行。
 - `relation-engine.js`：S-24，输出目录仍指向前代项目，禁止默认写入。
 - `index.py`、`verify.py`：S-25、S-26，分别存在先删旧索引和真实设备副作用，不得作为安全维护/测试命令。
