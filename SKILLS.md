@@ -23,17 +23,17 @@
 
 | 你要做的事 | 现成轮子 | 一句话用法 | 状态 |
 |---|---|---|---|
-| **给另一个 App/分身发消息（稳健）** | `send_intent.py` | `python3 .../send_intent.py --user 999 --text "..."` | ✅ 推荐 |
+| **给另一个 App/分身发消息（稳健）** | `send_intent.py` | 先核验目标节点；dry-run 会改界面 | ⚠️ 按节点验证 |
 | 给 App 发消息（旧版/兼容） | `send_v2.py` | 坐标+中文广播，界面变易失效 | ⚠️ 遗留 |
-| 读某 AI 的全部会话/导出 md | `sync.py` + adapters | 读库→脱敏→写知识库 | ✅ |
+| 读某 AI 的全部会话/导出 md | `sync.py` + adapters | 源码候选；安全修复前禁止真实同步 | ⛔ 暂停 |
 | 在分身里看其他 AI 对话 | `分身查看AI对话.py` | 走 rootc 通道 | ✅ |
-| 执行真 root 命令（主体/分身） | `rootc.py` | `python3 rootc.py "命令"` | ✅ 基础设施 |
+| 执行真 root 命令（主体/分身） | `rootc.py` | 通用高权限入口，仅限授权设备管理节点 | ⛔ 高权限 |
 | 找 App 输入框（底层） | `find_input.py` | 输出坐标，已被 send_intent 取代 | ⚠️ 遗留 |
-| 对话/产出 → 事件流 | `timeline-engine.js` | `node timeline-engine.js --project X` | ✅ |
-| 实体关系图/反向查询 | `relation-engine.js` | `node relation-engine.js --who 大肥鱼` | ✅ |
+| 对话/产出 → 事件流 | `timeline-engine.js` | 候选资产；部署状态待核验 | ⚠️ 待验证 |
+| 实体关系图/反向查询 | `relation-engine.js` | 候选资产；部署状态待核验 | ⚠️ 待验证 |
 | 一键立项 / 打包 / 归档 | `new-project.sh` / `pack-project.sh` / `archive-project.sh` | 见各文件头 | ✅ |
-| 流程编排（1→并行→汇合） | `flow/engine.py` | `FlowEngine.load(...)` | ✅ |
-| ACP 桥接（对外协议） | `multi-ai-bridge-acp/bridge.py` | JSON-RPC over stdio | ✅ |
+| 流程编排（1→并行→汇合） | `flow/engine.py` | 只读审查；runner 有状态污染问题 | ⚠️ 待修复 |
+| ACP 桥接（对外协议） | `multi-ai-bridge-acp/bridge.py` | 源码候选；协议/权限隔离待验证 | ⚠️ 待验证 |
 | 推 GitHub（网络不稳） | 见能力卡5 | `git -c http.version=HTTP/1.1 ... push` | ✅ |
 | 派活给 AI 的验收清单 | `09-协作能力清单.md` | 谁可读/谁跳过 | ✅ |
 | **心跳派活（队列/状态机/重试）** | `heartbeat.js` | 仅静态审查；生产使用暂停 | ⚠️ 待安全修复 |
