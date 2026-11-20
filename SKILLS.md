@@ -181,3 +181,5 @@
 - `find_input.py`：Compose 坐标兜底可能选中非输入控件（S-46）；不得用于无人值守真实点击。
 - `flow/runner.py`：YG 人工节点被自动标记完成（S-47）；runner 继续只读。
 - `插件-ai-company-web`：`/intervene` 通过 GET 改状态且 token 放 URL（S-48）；写路由禁用，直到 POST/CSRF/身份授权完善。
+
+- `分身查看AI对话.py`：S-49 将完整 App 私有 SQLite/WAL 复制到固定 `/sdcard/_aidb_tmp*` 并且不清理共享副本和本地临时目录；可能长期泄露私聊数据库，当前禁止运行。
