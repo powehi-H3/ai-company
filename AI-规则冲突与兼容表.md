@@ -99,3 +99,10 @@
 | S-19 | `60-工具与备份/脚本/multi-ai-bridge-adapters/base.py` | `health()` 的 `sendable` 只判断 aidrop 文件存在和 app_key 非空，不验证设备、前台、App 版本、实际权限和投递结果 | 能力健康状态可能虚报“可发送”，误导任务路由 | 将静态配置状态与运行时实测状态拆开；发送能力必须有近期端到端证据和明确节点/用户范围 |
 **处置要求：** 上述脚本属于公共系统能力，必须另立专项修复任务，由非作者独立审查。未经专项审查与用户确认，不在本次仓库标准化工作中修改、运行或部署这些脚本。尤其 S-03/S-04/S-07 修复并验证前，不建议对真实项目执行归档脚本。
 
+
+
+| S-20 | `60-工具与备份/脚本/multi-ai-bridge-adapters/send_v2.py` | `_send_v2_inner()` 将外部文本直接插入 `root_cmd(f'input text "{text}" ...')`，而 `root_cmd` 最终把命令交给 rootc/rootd 执行；双引号内的命令替换/引号闭合可改变命令语义 | 除已禁用的 AppAgent/base.py 路径外，另一条 send_v2/flow runner 投递路径仍可能将普通消息变成 root 命令；形成安全禁用绕过 | 立即禁用 send_v2.py 的真实投递及任何调用它的 flow runner；统一改为参数数组/安全 stdin 传输，禁止将不可信文本拼进 shell；以命令替换、引号闭合、反引号、换行、Unicode 等恶意输入做回归与独立审查 |
+| S-21 | `60-工具与备份/脚本/multi-ai-bridge-adapters/send_v2.py` | `_dump_and_get_pkg()` 与 `_dump_ui()` 将 UI hierarchy dump 写入固定共享存储路径 `/sdcard/_send_v2.xml`、`/sdcard/_sv2_verify.xml`，未见可靠清理、访问限制或并发隔离 | UI XML 可能包含当前 App 页面文字/会话片段；共享存储残留造成隐私暴露，并发任务可能互相覆盖/读错 | 改为私有、唯一、任务级临时目录；最小权限；成功/失败均 finally 清理；验证不留残留且并发隔离；在修复前禁止真实设备投递 |
+| S-22 | `60-工具与备份/脚本/multi-ai-bridge-adapters/send_v2.py`、`flow/runner.py` | `send_v2(dry_run=True)` 仍启动目标 App、点击输入框并填入文字；随后 runner 将 `ok=True` 的节点调用 `mark_done()` 并写回流程 JSON | dry-run 会改变设备界面/留下草稿，却被记录为节点已完成；可能造成未发送任务被误判完成、重复执行或漏执行 | 将 dry-run 设计为纯预览，不触碰设备、不改持久状态；把“已预览/待执行/已投递/已确认回复/已验收”拆成独立状态；仅真实执行且满足验收条件后才能完成节点；补端到端状态机测试 |
+
+**新增安全门禁：** S-20 至 S-22 已发现 send_v2/flow runner 存在独立于 AppAgent 的风险。S-14 的 ACP/AppAgent 禁用说明不能覆盖这条路径；在 S-20 修复并独立审查前，所有调用 `send_v2.py` 的真实发送均禁用；在 S-21 修复前不得运行真实设备投递；在 S-22 修复前不得用 runner 推进正式流程状态。
