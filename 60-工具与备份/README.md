@@ -46,3 +46,8 @@
 - `aidrop.sh`：S-40 可能删除用户已有草稿，S-41 固定 UI dump 留存且并发共用；不得真实运行。
 - `heartbeat-worker.js`：S-42 进程退出即标 done、无产物验收；S-43 将任务结果写入前代项目事件流；不得启动。
 - `flow/engine.py`：S-44 不验证重复节点 ID、依赖环和未知 completed ID；无效流程可能静默丢节点/卡死。
+
+- `multi-ai-bridge-acp/src/server.js`：S-45 ACP 会话与真实 App 会话没有在发送前绑定，可能跨会话投递/误取回复。
+- `find_input.py`：S-46 Compose 坐标兜底未验证输入控件语义，可能点错 View。
+- `flow/runner.py`：S-47 人工 YG 节点被直接标 done，runner 不得推进正式流程。
+- `插件-ai-company-web`：S-48 状态变更走 GET query，授权 token 暴露在 URL；写路由暂停。
