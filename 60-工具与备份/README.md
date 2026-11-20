@@ -41,3 +41,8 @@
 - `插件-ai-company-web`：S-29 至 S-31，路径符号链接、宿主认证依赖和过时权限快照未核实前，不作为生产控制台。
 - `sync.py`：S-11、S-32、S-33，禁止真实同步，直到私有暂存、异常清理和防覆盖机制修复。
 - `pack-project.sh`、`archive-project.sh`：S-34 至 S-36，禁止真实归档/覆盖；其中 `archive-project.sh` 的 `P=..` 路径可将整个项目区作为删除目标。
+
+
+- `aidrop.sh`：S-40 可能删除用户已有草稿，S-41 固定 UI dump 留存且并发共用；不得真实运行。
+- `heartbeat-worker.js`：S-42 进程退出即标 done、无产物验收；S-43 将任务结果写入前代项目事件流；不得启动。
+- `flow/engine.py`：S-44 不验证重复节点 ID、依赖环和未知 completed ID；无效流程可能静默丢节点/卡死。
