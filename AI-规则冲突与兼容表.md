@@ -152,3 +152,6 @@
 | S-46 | `60-工具与备份/脚本/find_input.py`、`multi-ai-bridge-adapters/send_v2.py` | Compose 兜底只按节点 bounds 的宽度、高度和屏幕底部位置筛选，没有校验节点是否可编辑/可聚焦/属于目标 App 的输入区域；返回一个“最接近 90% 屏宽”的节点坐标供真实点击 | 页面底部的其他大 View/容器可能被误选，导致文字填入错误控件或触发错误操作 | 仅接受经验证的输入控件语义/资源 ID/可编辑属性；坐标兜底必须要求人工确认或仅用于只读提示；补不同 App 页面布局误选测试 |
 | S-47 | `60-工具与备份/脚本/flow/runner.py` | `execute_node()` 对 `executor == 'yg'` 的人工步骤直接返回 `True`，外层随即 `eng.mark_done(nid)`；没有等待用户完成或人工确认 | 需要用户实际完成的任务会在第一次 runner 执行时被自动标记完成，造成流程提前闭环和后续节点错误启动 | 人工步骤必须进入 `awaiting_human`，只有明确的人类确认事件才能转 done；runner 不得自动完成人工节点 |
 | S-48 | `60-工具与备份/插件-ai-company-web/lib/index.js`、`lib/client.js` | `/intervene?mode=apply` 通过 GET query 参数执行文件状态修改；前端统一用 `fetch(url)` GET，token 也放在 URL query 中；宿主层是否有 CSRF/身份验证尚未确认 | 状态改变不符合安全 HTTP 语义，可能被浏览器预取/跨站请求或代理访问日志记录；短时授权 token 可能进入 URL 日志/历史 | 改为受认证 POST 请求，token 放请求体；验证 Origin/CSRF token、调用者身份和角色权限；审计日志不得记录 token；宿主防护未确认前禁用写路由 |
+
+
+| S-49 | `60-工具与备份/脚本/分身查看AI对话.py` | `pull_db()` 将 ChatGPT/千问/DeepSeek 私有 SQLite 数据库及 `-wal`/`-shm` 复制到固定共享存储路径 `/sdcard/_aidb_tmp*`，再复制进 `tempfile.mkdtemp()` 本地目录；固定共享副本会被并发调用覆盖，且共享副本和本地临时目录均无 finally 清理，读取完成后仍可能残留完整私聊数据库副本 | 私聊数据库、WAL 中未 checkpoint 的消息内容可能长期残留于共享存储/临时目录；并发读取可能读错库或产生不一致快照 | 禁止将完整私聊数据库落到共享存储；采用受保护的唯一私有暂存目录或通过安全管道传输；使用 SQLite backup API/一致性快照；在 finally 清理所有副本并验证无残留；增加并发、异常退出、WAL 场景测试 |
