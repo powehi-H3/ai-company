@@ -1,7 +1,7 @@
 # AI 仓库目录地图
 
 > 版本：1.1
-> 盘点基线：`project/multi-ai-collaboration-foundation`，提交 `60aa8b38d61eafaf7a39d076e3b4f7d34452e728`
+> 盘点基线：`project/multi-ai-collaboration-foundation`，提交 `4e536dcc5a688d21e98579c26554b390a089dd02`
 > 盘点日期：2026-11-20
 > 盘点结果：Git tree 递归清单 375 项（286 个文件、89 个目录）；未发现 GitHub tree 截断。
 > 说明：本地图以当前系统开发工作分支为基线；`main` 仍保持原始内容，未合并本轮变更。
