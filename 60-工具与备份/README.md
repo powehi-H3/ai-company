@@ -51,3 +51,5 @@
 - `find_input.py`：S-46 Compose 坐标兜底未验证输入控件语义，可能点错 View。
 - `flow/runner.py`：S-47 人工 YG 节点被直接标 done，runner 不得推进正式流程。
 - `插件-ai-company-web`：S-48 状态变更走 GET query，授权 token 暴露在 URL；写路由暂停。
+
+- `分身查看AI对话.py`：S-49 私聊数据库/WAL 被复制到固定共享存储路径且没有 finally 清理，本地临时目录也残留；禁止运行，禁止复制真实 App 数据库。
