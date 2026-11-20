@@ -33,7 +33,7 @@
 | 实体关系图/反向查询 | `relation-engine.js` | 候选资产；部署状态待核验 | ⚠️ 待验证 |
 | 一键立项 / 打包 / 归档 | `new-project.sh` / `pack-project.sh` / `archive-project.sh` | 见各文件头 | ✅ |
 | 流程编排（1→并行→汇合） | `flow/engine.py` | 只读审查；runner 有状态污染问题 | ⚠️ 待修复 |
-| ACP 桥接（对外协议） | `multi-ai-bridge-acp/bridge.py` | 源码候选；协议/权限隔离待验证 | ⚠️ 待验证 |
+| ACP 桥接（对外协议） | `multi-ai-bridge-acp/bridge.py` | 真实发送路径存在 root 命令注入风险；禁用 | ⛔ 禁用发送 |
 | 推 GitHub（网络不稳） | 见能力卡5 | `git -c http.version=HTTP/1.1 ... push` | ✅ |
 | 派活给 AI 的验收清单 | `09-协作能力清单.md` | 谁可读/谁跳过 | ✅ |
 | **心跳派活（队列/状态机/重试）** | `heartbeat.js` | 仅静态审查；生产使用暂停 | ⚠️ 待安全修复 |
@@ -141,6 +141,10 @@
 - `multi-ai-bridge-scripts/sync.py`：固定使用 `/sdcard/_syncstage` 并执行 `rm -rf` 清理；修复临时目录安全前禁止真实同步。
 - `multi-ai-bridge-adapters/send_intent.py`：`--dry-run` 会切换 user 并填充 App 输入框，不是无副作用预览。
 - `rootc.py`：是通用 root 命令执行入口，不得向普通 AI 或外部 ACP agent 无差别暴露。
+- `multi-ai-bridge-adapters/base.py`：`send_message()` 存在双引号 shell 命令注入风险；ACP `send_message` 路径立即禁用。`copy_db()` 还会把私有数据库复制到共享存储固定路径，存在数据泄露/并发覆盖风险。
+- `multi-ai-bridge-adapters/deepseek.py`：会话 ID 被拼接进 SQL 表名，必须先做白名单校验；外部 ACP 输入不得直接传入。
+- `multi-ai-bridge-acp/src/server.js`：回复轮询未用发送前游标/角色/消息关联，可能把旧消息误判为本次回复；不能作为可靠闭环证据。
+- `multi-ai-bridge-scripts/sanitize.py`：脱敏规则不完整；导出对话不得标记为“已充分脱敏”，必须限制访问并做二次扫描。
 - `archive-project.sh`：见 S-03/S-04/S-07；修复并独立审查前禁止用于真实项目。
 - `pack-project.sh`：存在静默删除同名旧包风险，修复前禁止覆盖已有包。
 
