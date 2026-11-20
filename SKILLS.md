@@ -37,7 +37,7 @@
 | 推 GitHub（网络不稳） | 见能力卡5 | `git -c http.version=HTTP/1.1 ... push` | ✅ |
 | 派活给 AI 的验收清单 | `09-协作能力清单.md` | 谁可读/谁跳过 | ✅ |
 | **心跳派活（队列/状态机/重试）** | `heartbeat.js` | `node heartbeat.js enqueue --title "..."` | ✅ 新 |
-| **心跳 worker（真执行）** | `heartbeat-worker.js` | `node heartbeat-worker.js run` | ✅ 新 |
+| **心跳 worker（真执行）** | `heartbeat-worker.js` | 禁止无人值守运行，先完成权限审计 | ⛔ 暂停 |
 
 ---
 
@@ -131,6 +131,20 @@
 
 ---
 
+## 高风险工具状态（2026-11-20 审计补充）
+
+以下说明优先于上方历史能力卡中的“推荐/已验证”字样：
+
+- `heartbeat.js`：任务状态命令未校验锁所有权，且允许跳过 review 直接 done；当前不能作为可信任务状态机。
+- `heartbeat-worker.js`：会把队列任务直接交给具备工具能力的 ACP 会话，未建立任务级工具权限和高风险审批闸门；禁止无人值守生产运行。
+- `flow/runner.py`：`--step` 虽标记为 dry-run，仍会写回节点完成状态；DSH 节点还有占位实现。当前只允许只读查看流程状态。
+- `multi-ai-bridge-scripts/sync.py`：固定使用 `/sdcard/_syncstage` 并执行 `rm -rf` 清理；修复临时目录安全前禁止真实同步。
+- `multi-ai-bridge-adapters/send_intent.py`：`--dry-run` 会切换 user 并填充 App 输入框，不是无副作用预览。
+- `rootc.py`：是通用 root 命令执行入口，不得向普通 AI 或外部 ACP agent 无差别暴露。
+- `archive-project.sh`：见 S-03/S-04/S-07；修复并独立审查前禁止用于真实项目。
+- `pack-project.sh`：存在静默删除同名旧包风险，修复前禁止覆盖已有包。
+
+完整登记见根目录 `AI-规则冲突与兼容表.md` 的 S-08 至 S-13。上述代码本轮仅静态审查，未运行、未修改；当前设备部署状态未验证。
 ## 三、登记新能力（造完轮子必做）
 
 复制下面模板，追加到「二、能力卡」：
