@@ -36,7 +36,7 @@
 | ACP 桥接（对外协议） | `multi-ai-bridge-acp/bridge.py` | JSON-RPC over stdio | ✅ |
 | 推 GitHub（网络不稳） | 见能力卡5 | `git -c http.version=HTTP/1.1 ... push` | ✅ |
 | 派活给 AI 的验收清单 | `09-协作能力清单.md` | 谁可读/谁跳过 | ✅ |
-| **心跳派活（队列/状态机/重试）** | `heartbeat.js` | `node heartbeat.js enqueue --title "..."` | ✅ 新 |
+| **心跳派活（队列/状态机/重试）** | `heartbeat.js` | 仅静态审查；生产使用暂停 | ⚠️ 待安全修复 |
 | **心跳 worker（真执行）** | `heartbeat-worker.js` | 禁止无人值守运行，先完成权限审计 | ⛔ 暂停 |
 
 ---
@@ -78,7 +78,7 @@
 
 ### 能力 4：真 root 通道
 - **路径**：`60-工具与备份/脚本/rootc.py`
-- **用法**：`python3 rootc.py "命令"`（`--role` 看主体/分身身份）
+- **用法**：`python3 rootc.py "命令"`（`--role` 看主体/分身身份；通用 root 执行入口，仅限明确授权的设备管理节点）
 - **原理**：走 rootd 守护（context=u:r:ksu:s0），proot 里普通 su 读不到 /data/data，这个能
 - **坑**：分身 /sdcard = `/storage/emulated/999`，主体 = `/storage/emulated/0`；root 可跨 user 读写两者
 
@@ -113,7 +113,7 @@
   # 派活
   node heartbeat.js enqueue --title "任务描述" --assignee DSH --project X
   # 执行（自动领取→调AI→回写→归档）
-  node heartbeat-worker.js run
+  # ⚠️ 历史用法示例；worker 当前暂停，不得无人值守运行\n  node heartbeat-worker.js run
   # 查看
   node heartbeat.js list / stats
   ```
